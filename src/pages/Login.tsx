@@ -98,19 +98,42 @@ export default function Login() {
                   id="password"
                   name="password"
                   type="password"
-                  autoComplete={isSignUp ? 'new-password'
-
-If there's knowledge, context or custom instructions you want to include in every edit in this project, set it below.
-
-<lov-actions>
-<lov-knowledge>
-</lov-actions>
-
-Since you're using Supabase for authentication, you'll need to connect your frontend to your Supabase project to handle user authentication and data persistence for orders, buildings, units, and other data.  You can use the Supabase client libraries for React to integrate seamlessly.
-<lov-actions>
-<lov-message-prompt message="Tell me more about Supabase">Learn more about Supabase</lov-message-prompt>
-</lov-actions>
-
-<lov-actions>
-<lov-link url="https://docs.lovable.dev/">Visit docs</lov-link>
-</lov-actions>
+                  autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full rounded-md border border-input px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {isLoading 
+                  ? 'Processing...' 
+                  : (isSignUp ? 'Create account' : 'Sign in')}
+              </button>
+              
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {isSignUp 
+                    ? 'Already have an account? Sign in' 
+                    : 'Need an account? Sign up'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
