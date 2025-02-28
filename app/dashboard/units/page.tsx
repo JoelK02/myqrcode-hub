@@ -77,43 +77,23 @@ export default function UnitsPage() {
 
   const handleCreateUnit = async (data: CreateUnitInput) => {
     try {
-      setIsLoading(true);
       await createUnit(data);
-      await fetchUnits(filterBuildingId || undefined);
+      const updatedUnits = await getUnits(filterBuildingId || undefined);
+      setUnits(updatedUnits);
     } catch (err) {
       console.error('Error creating unit:', err);
-    } finally {
-      setIsLoading(false);
+      throw err;
     }
   };
 
   const handleUpdateUnit = async (data: UpdateUnitInput) => {
     try {
-      setIsLoading(true);
       await updateUnit(data);
-      await fetchUnits(filterBuildingId || undefined);
+      const updatedUnits = await getUnits(filterBuildingId || undefined);
+      setUnits(updatedUnits);
     } catch (err) {
       console.error('Error updating unit:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Unified handler function for create and update operations
-  const handleSubmitUnit = async (data: CreateUnitInput | UpdateUnitInput) => {
-    try {
-      setIsLoading(true);
-      // Check if it's an update operation (has an id property)
-      if ('id' in data) {
-        await updateUnit(data as UpdateUnitInput);
-      } else {
-        await createUnit(data as CreateUnitInput);
-      }
-      await fetchUnits(filterBuildingId || undefined);
-    } catch (err) {
-      console.error('Error submitting unit:', err);
-    } finally {
-      setIsLoading(false);
+      throw err;
     }
   };
 
@@ -124,7 +104,8 @@ export default function UnitsPage() {
 
     try {
       await deleteUnit(id);
-      await fetchUnits(filterBuildingId || undefined);
+      const updatedUnits = await getUnits(filterBuildingId || undefined);
+      setUnits(updatedUnits);
     } catch (err) {
       console.error('Error deleting unit:', err);
       alert('Failed to delete unit');
@@ -398,7 +379,7 @@ export default function UnitsPage() {
       <UnitDialog
         isOpen={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onSubmit={handleSubmitUnit}
+        onSubmit={selectedUnit ? handleUpdateUnit : handleCreateUnit}
         unit={selectedUnit}
         building={selectedBuilding}
         title={selectedUnit ? 'Edit Unit' : 'Add Unit'}

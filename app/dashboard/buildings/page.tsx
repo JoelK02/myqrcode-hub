@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Building, CreateBuildingInput, UpdateBuildingInput } from '../../types/buildings';
+import { Building } from '../../types/buildings';
 import { getBuildings, createBuilding, updateBuilding, deleteBuilding } from '../../services/buildings';
 import { BuildingDialog } from '../../components/buildings/BuildingDialog';
 import { Plus, Pencil, Trash2, ExternalLink } from 'lucide-react';
@@ -59,7 +59,7 @@ export default function BuildingsPage() {
     }
   };
 
-  const handleCreateBuilding = async (data: CreateBuildingInput) => {
+  const handleCreateBuilding = async (data: Omit<Building, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       await createBuilding(data);
       await loadBuildings();
@@ -69,28 +69,12 @@ export default function BuildingsPage() {
     }
   };
 
-  const handleUpdateBuilding = async (data: UpdateBuildingInput) => {
+  const handleUpdateBuilding = async (data: Omit<Building, 'created_at' | 'updated_at'>) => {
     try {
       await updateBuilding(data);
       await loadBuildings();
     } catch (err) {
       console.error('Error updating building:', err);
-      throw err;
-    }
-  };
-
-  // Unified handler function that works with both create and update operations
-  const handleSubmitBuilding = async (data: CreateBuildingInput | UpdateBuildingInput) => {
-    try {
-      // Check if it's an update operation (has an id property)
-      if ('id' in data) {
-        await updateBuilding(data as UpdateBuildingInput);
-      } else {
-        await createBuilding(data as CreateBuildingInput);
-      }
-      await loadBuildings();
-    } catch (err) {
-      console.error('Error submitting building:', err);
       throw err;
     }
   };
@@ -221,7 +205,7 @@ export default function BuildingsPage() {
       <BuildingDialog
         isOpen={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onSubmit={handleSubmitBuilding}
+        onSubmit={selectedBuilding ? handleUpdateBuilding : handleCreateBuilding}
         building={selectedBuilding}
         title={selectedBuilding ? 'Edit Building' : 'Add Building'}
       />

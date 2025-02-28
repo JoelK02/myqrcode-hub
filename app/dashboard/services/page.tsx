@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { MenuItem, CreateMenuItemInput, UpdateMenuItemInput } from '../../types/menu';
-import { Service, CreateServiceInput, UpdateServiceInput } from '../../types/service';
+import { MenuItem } from '../../types/menu';
+import { Service } from '../../types/service';
 import { getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem } from '../../services/menu';
 import { getServices, createService, updateService, deleteService } from '../../services/service';
 import { MenuItemDialog } from '../../components/menu/MenuItemDialog';
@@ -71,27 +71,33 @@ export default function ServicesPage() {
     }
   };
 
-  const handleCreateMenuItem = async (data: CreateMenuItemInput) => {
+  const handleCreateMenuItem = async (data: Omit<MenuItem, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      setIsLoading(true);
       await createMenuItem(data);
-      fetchMenuItems();
+      setIsFilterLoading(true);
+      const newItems = await getMenuItems(activeCategory || undefined);
+      setMenuItems(newItems);
+      setError(null);
     } catch (err) {
       console.error('Error creating menu item:', err);
+      throw err;
     } finally {
-      setIsLoading(false);
+      setIsFilterLoading(false);
     }
   };
 
-  const handleUpdateMenuItem = async (data: UpdateMenuItemInput) => {
+  const handleUpdateMenuItem = async (data: Omit<MenuItem, 'created_at' | 'updated_at'>) => {
     try {
-      setIsLoading(true);
       await updateMenuItem(data);
-      fetchMenuItems();
+      setIsFilterLoading(true);
+      const newItems = await getMenuItems(activeCategory || undefined);
+      setMenuItems(newItems);
+      setError(null);
     } catch (err) {
       console.error('Error updating menu item:', err);
+      throw err;
     } finally {
-      setIsLoading(false);
+      setIsFilterLoading(false);
     }
   };
 
@@ -166,27 +172,33 @@ export default function ServicesPage() {
     }
   };
 
-  const handleCreateService = async (data: CreateServiceInput) => {
+  const handleCreateService = async (data: Omit<Service, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      setIsLoading(true);
       await createService(data);
-      fetchServices();
+      setIsFilterLoading(true);
+      const newServices = await getServices(activeServiceCategory || undefined);
+      setServices(newServices);
+      setError(null);
     } catch (err) {
       console.error('Error creating service:', err);
+      throw err;
     } finally {
-      setIsLoading(false);
+      setIsFilterLoading(false);
     }
   };
 
-  const handleUpdateService = async (data: UpdateServiceInput) => {
+  const handleUpdateService = async (data: Omit<Service, 'created_at' | 'updated_at'>) => {
     try {
-      setIsLoading(true);
       await updateService(data);
-      fetchServices();
+      setIsFilterLoading(true);
+      const newServices = await getServices(activeServiceCategory || undefined);
+      setServices(newServices);
+      setError(null);
     } catch (err) {
       console.error('Error updating service:', err);
+      throw err;
     } finally {
-      setIsLoading(false);
+      setIsFilterLoading(false);
     }
   };
 
@@ -262,71 +274,6 @@ export default function ServicesPage() {
       alert('Failed to add basic services');
     } finally {
       setIsAddingBasicServices(false);
-      setIsFilterLoading(false);
-    }
-  };
-
-  // Unified handler function for menu item create and update operations
-  const handleSubmitMenuItem = async (data: CreateMenuItemInput | UpdateMenuItemInput) => {
-    try {
-      setIsLoading(true);
-      // Check if it's an update operation (has an id property)
-      if ('id' in data) {
-        await updateMenuItem(data as UpdateMenuItemInput);
-      } else {
-        await createMenuItem(data as CreateMenuItemInput);
-      }
-      fetchMenuItems();
-    } catch (err) {
-      console.error('Error submitting menu item:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Unified handler function for service create and update operations
-  const handleSubmitService = async (data: CreateServiceInput | UpdateServiceInput) => {
-    try {
-      setIsLoading(true);
-      // Check if it's an update operation (has an id property)
-      if ('id' in data) {
-        await updateService(data as UpdateServiceInput);
-      } else {
-        await createService(data as CreateServiceInput);
-      }
-      fetchServices();
-    } catch (err) {
-      console.error('Error submitting service:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Helper functions to fetch data
-  const fetchMenuItems = async () => {
-    try {
-      setIsFilterLoading(true);
-      const newItems = await getMenuItems(activeCategory || undefined);
-      setMenuItems(newItems);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching menu items:', err);
-      setError('Failed to load menu items');
-    } finally {
-      setIsFilterLoading(false);
-    }
-  };
-
-  const fetchServices = async () => {
-    try {
-      setIsFilterLoading(true);
-      const newServices = await getServices(activeServiceCategory || undefined);
-      setServices(newServices);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching services:', err);
-      setError('Failed to load services');
-    } finally {
       setIsFilterLoading(false);
     }
   };
@@ -613,7 +560,7 @@ export default function ServicesPage() {
       <MenuItemDialog
         isOpen={menuDialogOpen}
         onClose={() => setMenuDialogOpen(false)}
-        onSubmit={handleSubmitMenuItem}
+        onSubmit={selectedMenuItem ? handleUpdateMenuItem : handleCreateMenuItem}
         menuItem={selectedMenuItem}
         title={selectedMenuItem ? 'Edit Menu Item' : 'Add Menu Item'}
       />
@@ -621,7 +568,7 @@ export default function ServicesPage() {
       <ServiceDialog
         isOpen={serviceDialogOpen}
         onClose={() => setServiceDialogOpen(false)}
-        onSubmit={handleSubmitService}
+        onSubmit={selectedService ? handleUpdateService : handleCreateService}
         service={selectedService}
         title={selectedService ? 'Edit Service' : 'Add Service'}
       />
