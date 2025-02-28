@@ -18,7 +18,7 @@ import { createClient } from '@supabase/supabase-js';
 // Client component wrapper
 function OrderPageWrapper() {
   return (
-    <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+    <Suspense key="order-search-params" fallback={<div className="p-8 text-center">Loading...</div>}>
       <SearchParamsReader />
     </Suspense>
   );
@@ -28,6 +28,14 @@ function OrderPageWrapper() {
 function SearchParamsReader() {
   const searchParams = useSearchParams();
   const unitId = searchParams.get('unit');
+  
+  // Add client-side logging to help diagnose mobile issues
+  useEffect(() => {
+    console.log("SearchParamsReader executed");
+    console.log("Search params:", Object.fromEntries([...searchParams.entries()]));
+    console.log("Unit ID from params:", unitId);
+    console.log("Current window location:", window.location.href);
+  }, [searchParams, unitId]);
   
   return <OrderPage unitId={unitId || ''} />;
 }

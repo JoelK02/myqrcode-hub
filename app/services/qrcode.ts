@@ -8,14 +8,18 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Base URL for the guest ordering page
 const getBaseOrderUrl = () => {
-  if (typeof window !== 'undefined') {
-    // Client-side execution
-    const origin = window.location.origin;
-    return `${origin}/order`;
+  // First prioritize environment variable
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return `${process.env.NEXT_PUBLIC_APP_URL}/order`;
   }
-  // Server-side execution (Next.js SSR)
-  // Use environment variable or default for production, or use localhost for development
-  return process.env.NEXT_PUBLIC_APP_URL || 'https://myqrcode-hub.vercel.app/order';
+  
+  // Fall back to client-side origin detection only if env var isn't available
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/order`;
+  }
+  
+  // Last resort fallback
+  return 'https://myqrcode-hub.vercel.app/order';
 };
 
 // Generate a QR code data URL 
