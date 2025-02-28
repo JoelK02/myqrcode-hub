@@ -498,7 +498,7 @@ function OrderPage({ unitId }: { unitId: string }) {
                                 id: item.id,
                                 name: item.name,
                                 price: item.price
-                              } as any)} // Quick workaround for type safety
+                              } as MenuItem | Service)}
                               className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
                             >
                               <Plus className="h-4 w-4" />

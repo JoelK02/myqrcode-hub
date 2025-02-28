@@ -1,30 +1,14 @@
 'use client';
 
-import React, { createContext, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
+import { AuthContext, AuthContextType, User } from '../contexts/AuthContext';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://pslapwodbwhedywmlfmk.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBzbGFwd29kYndoZWR5d21sZm1rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1NTQ4NzgsImV4cCI6MjA1NjEzMDg3OH0.YXR7RN1ELBO8ywDv_tXpioTFJrpNXr9UtDLhxzgcHmU';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// Types
-export type User = {
-  id: string;
-  email?: string;
-};
-
-export interface AuthContextType {
-  user: User | null;
-  isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
-}
-
-// Create auth context
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
