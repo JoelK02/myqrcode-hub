@@ -15,7 +15,7 @@ const getBaseOrderUrl = () => {
   }
   // Server-side execution (Next.js SSR)
   // Use environment variable or default for production, or use localhost for development
-  return process.env.NEXT_PUBLIC_APP_URL || 'https://myqrcode-hub-f9ic.vercel.app/order';
+  return process.env.NEXT_PUBLIC_APP_URL || 'https://myqrcode-hub.vercel.app/order';
 };
 
 // Generate a QR code data URL 
