@@ -15,7 +15,7 @@ import {
   Home
 } from 'lucide-react';
 import { cn } from '../lib/utils';   
-import { useAuth } from './AuthProvider';
+import { useAuth } from '../hooks/useAuth';
 
 export function Sidebar() {
   const [expanded, setExpanded] = useState(true);

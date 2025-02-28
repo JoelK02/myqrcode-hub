@@ -4,7 +4,7 @@ import { Service, CreateServiceInput } from '../../types/service';
 interface ServiceDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: CreateServiceInput | Service) => Promise<void>;
   service?: Service;
   title: string;
 }

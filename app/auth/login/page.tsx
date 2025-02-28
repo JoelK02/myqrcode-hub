@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../../components/AuthProvider';
+import { useAuth } from '../../hooks/useAuth';
 import { QrCode } from 'lucide-react';
 
 export default function Login() {

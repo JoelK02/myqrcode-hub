@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Bell, User } from 'lucide-react';
-import { useAuth } from './AuthProvider';
+import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
 
 export function TopNav({ title = 'Dashboard' }: { title?: string }) {

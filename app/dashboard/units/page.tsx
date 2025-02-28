@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Unit } from '../../types/units';
+import { Unit, CreateUnitInput, UpdateUnitInput } from '../../types/units';
 import { Building } from '../../types/buildings';
 import { getUnits, createUnit, updateUnit, deleteUnit } from '../../services/units';
 import { getBuildings } from '../../services/buildings';
@@ -75,7 +75,7 @@ export default function UnitsPage() {
     }
   };
 
-  const handleCreateUnit = async (data: any) => {
+  const handleCreateUnit = async (data: CreateUnitInput) => {
     try {
       await createUnit(data);
       const updatedUnits = await getUnits(filterBuildingId || undefined);
@@ -86,7 +86,7 @@ export default function UnitsPage() {
     }
   };
 
-  const handleUpdateUnit = async (data: any) => {
+  const handleUpdateUnit = async (data: UpdateUnitInput) => {
     try {
       await updateUnit(data);
       const updatedUnits = await getUnits(filterBuildingId || undefined);

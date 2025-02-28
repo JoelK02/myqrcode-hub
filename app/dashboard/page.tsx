@@ -7,7 +7,7 @@ import {
   ClipboardList, 
   UtensilsCrossed
 } from 'lucide-react';
-import { useAuth } from '../components/AuthProvider';
+import { useAuth } from '../hooks/useAuth';
 
 // Dashboard card component
 function DashboardCard({ 

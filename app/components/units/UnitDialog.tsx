@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Unit } from '../../types/units';
 import { Building } from '../../types/buildings';
-import { CreateUnitInput } from '../../types/units';
+import { CreateUnitInput, UpdateUnitInput } from '../../types/units';
 import { getBuildings } from '../../services/buildings';
 import { QrCode, Loader2 } from 'lucide-react';
 import { generateQRCodeDataUrl } from '../../services/qrcode';
@@ -11,7 +11,7 @@ import { generateQRCodeDataUrl } from '../../services/qrcode';
 interface UnitDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: CreateUnitInput) => Promise<void>;
+  onSubmit: (data: CreateUnitInput | UpdateUnitInput) => Promise<void>;
   unit?: Unit;
   building?: Building;  // Make building optional
   title: string;
@@ -267,7 +267,7 @@ export function UnitDialog({
               id="status"
               required
               value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value as Unit['status'] })}
               className="w-full rounded-md border px-3 py-2"
             >
               <option value="available">Available</option>

@@ -3,7 +3,7 @@
 import React from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { TopNav } from '../components/TopNav';
-import { useAuth } from '../components/AuthProvider';
+import { useAuth } from '../hooks/useAuth';
 import { redirect } from 'next/navigation';
 
 export default function DashboardLayout({
