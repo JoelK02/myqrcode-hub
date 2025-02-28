@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Building } from '../../../types/buildings';
-import { Unit } from '../../../types/units';
+import { Unit, CreateUnitInput, UpdateUnitInput } from '../../../types/units';
 import { getBuilding } from '../../../services/buildings';
 import { getUnits, createUnit, updateUnit, deleteUnit } from '../../../services/units';
 import { UnitDialog } from '../../../components/units/UnitDialog';
@@ -60,7 +60,7 @@ export default function BuildingDetailsPage() {
     };
   }, [buildingId]);
 
-  const handleCreateUnit = async (data: Omit<Unit, 'id' | 'created_at' | 'updated_at'>) => {
+  const handleCreateUnit = async (data: CreateUnitInput) => {
     try {
       await createUnit(data);
       const updatedUnits = await getUnits(buildingId);
@@ -71,13 +71,30 @@ export default function BuildingDetailsPage() {
     }
   };
 
-  const handleUpdateUnit = async (data: Omit<Unit, 'created_at' | 'updated_at'>) => {
+  const handleUpdateUnit = async (data: UpdateUnitInput) => {
     try {
       await updateUnit(data);
       const updatedUnits = await getUnits(buildingId);
       setUnits(updatedUnits);
     } catch (err) {
       console.error('Error updating unit:', err);
+      throw err;
+    }
+  };
+
+  // Unified handler function for create and update operations
+  const handleSubmitUnit = async (data: CreateUnitInput | UpdateUnitInput) => {
+    try {
+      // Check if it's an update operation (has an id property)
+      if ('id' in data) {
+        await updateUnit(data as UpdateUnitInput);
+      } else {
+        await createUnit(data as CreateUnitInput);
+      }
+      const updatedUnits = await getUnits(buildingId);
+      setUnits(updatedUnits);
+    } catch (err) {
+      console.error('Error submitting unit:', err);
       throw err;
     }
   };
@@ -248,7 +265,7 @@ export default function BuildingDetailsPage() {
       <UnitDialog
         isOpen={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onSubmit={selectedUnit ? handleUpdateUnit : handleCreateUnit}
+        onSubmit={handleSubmitUnit}
         unit={selectedUnit}
         building={building}
         title={selectedUnit ? 'Edit Unit' : 'Add Unit'}

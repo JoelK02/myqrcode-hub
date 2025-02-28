@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Service, CreateServiceInput } from '../../types/service';
+import { Service, CreateServiceInput, UpdateServiceInput } from '../../types/service';
 
 interface ServiceDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: CreateServiceInput | Service) => Promise<void>;
+  onSubmit: (data: CreateServiceInput | UpdateServiceInput) => Promise<void>;
   service?: Service;
   title: string;
 }
@@ -62,8 +62,11 @@ export function ServiceDialog({ isOpen, onClose, onSubmit, service, title }: Ser
     setError(null);
 
     try {
-      const data = service ? { ...formData, id: service.id } : formData;
-      await onSubmit(data);
+      const submitData = service 
+        ? { ...formData, id: service.id } 
+        : formData;
+      
+      await onSubmit(submitData);
       onClose();
     } catch (err) {
       console.error('Error submitting service:', err);

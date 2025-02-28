@@ -61,44 +61,37 @@ export function UnitDialog({
     }
   }, [isOpen, building]);
 
-  // Reset form data when unit changes or when dialog is opened/closed
+  // Set form data when unit or building changes
   useEffect(() => {
-    setQrCodePreview(null);
-    
     if (unit) {
-      // If editing an existing unit
+      // Unit exists - editing mode
       setFormData({
         building_id: unit.building_id,
         unit_number: unit.unit_number,
         floor_number: unit.floor_number || '',
-        qr_code_url: unit.qr_code_url || '',
         status: unit.status,
-        description: unit.description || ''
+        description: unit.description || '',
+        qr_code_url: unit.qr_code_url || ''
       });
-      
-      // If the unit has a QR code, we can show a preview
-      if (unit.qr_code_url) {
-        showQRPreview(unit.id);
-      }
     } else if (building) {
-      // If creating a new unit from a specific building
+      // Creating a new unit with preselected building
       setFormData({
         building_id: building.id,
         unit_number: '',
         floor_number: '',
-        qr_code_url: '',
         status: 'available',
-        description: ''
+        description: '',
+        qr_code_url: ''
       });
     } else {
-      // If creating a new unit without a pre-selected building
+      // Reset form for a blank new unit
       setFormData({
         building_id: '',
         unit_number: '',
         floor_number: '',
-        qr_code_url: '',
         status: 'available',
-        description: ''
+        description: '',
+        qr_code_url: ''
       });
     }
   }, [unit, building, isOpen]);
@@ -118,13 +111,19 @@ export function UnitDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setIsLoading(true);
+
     try {
-      setIsLoading(true);
-      await onSubmit(formData);
+      // If we have a unit, this is an update operation, so include the ID
+      const submitData = unit 
+        ? { ...formData, id: unit.id } 
+        : formData;
+        
+      await onSubmit(submitData);
       onClose();
     } catch (error) {
-      console.error('Error submitting form:', error);
+      console.error('Error submitting unit:', error);
+      alert('Failed to save unit');
     } finally {
       setIsLoading(false);
     }

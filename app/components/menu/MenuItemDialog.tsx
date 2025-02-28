@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { MenuItem, CreateMenuItemInput } from '../../types/menu';
+import { MenuItem, CreateMenuItemInput, UpdateMenuItemInput } from '../../types/menu';
 
 interface MenuItemDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: CreateMenuItemInput) => Promise<void>;
+  onSubmit: (data: CreateMenuItemInput | UpdateMenuItemInput) => Promise<void>;
   menuItem?: MenuItem;
   title: string;
 }
@@ -39,7 +39,7 @@ export function MenuItemDialog({
         is_available: menuItem.is_available
       });
     } else {
-      // Reset form when creating a new item
+      // Reset form when opening in create mode
       setFormData({
         name: '',
         description: '',
@@ -55,7 +55,12 @@ export function MenuItemDialog({
     e.preventDefault();
     setIsLoading(true);
     try {
-      await onSubmit(formData);
+      // If we have a menuItem, this is an update operation, so include the ID
+      const submitData = menuItem 
+        ? { ...formData, id: menuItem.id } 
+        : formData;
+        
+      await onSubmit(submitData);
       onClose();
     } catch (error) {
       console.error('Error submitting menu item:', error);

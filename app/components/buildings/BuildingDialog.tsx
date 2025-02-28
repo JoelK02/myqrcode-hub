@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { Building, CreateBuildingInput } from '../../types/buildings';
+import { Building, CreateBuildingInput, UpdateBuildingInput } from '../../types/buildings';
 
 interface BuildingDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: CreateBuildingInput) => Promise<void>;
+  onSubmit: (data: CreateBuildingInput | UpdateBuildingInput) => Promise<void>;
   building?: Building;
   title: string;
 }
@@ -36,14 +36,28 @@ export function BuildingDialog({
         description: building.description || '',
         status: building.status
       });
+    } else {
+      // Reset form when opening in create mode
+      setFormData({
+        name: '',
+        address: '',
+        total_units: 0,
+        description: '',
+        status: 'active'
+      });
     }
-  }, [building]);
+  }, [building, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await onSubmit(formData);
+      // If we have a building, this is an update operation, so include the ID
+      const submitData = building 
+        ? { ...formData, id: building.id } 
+        : formData;
+      
+      await onSubmit(submitData);
       onClose();
     } catch (error) {
       console.error('Error submitting building:', error);
