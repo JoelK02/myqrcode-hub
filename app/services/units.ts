@@ -8,44 +8,26 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function getUnits(buildingId?: string): Promise<Unit[]> {
   try {
-    console.log(`Fetching units${buildingId ? ` for building: ${buildingId}` : ''}`);
+    let query = supabase
+      .from('units')
+      .select('*')
+      .order('unit_number');
     
-    // Build the URL with query parameters
-    let url = `${supabaseUrl}/rest/v1/units?select=*&order=unit_number`;
     if (buildingId) {
-      url += `&building_id=eq.${encodeURIComponent(buildingId)}`;
+      query = query.eq('building_id', buildingId);
     }
     
-    // Use direct fetch with proper headers to avoid 406 errors
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      }
-    });
+    const { data, error } = await query;
 
-    // Log the response status for debugging
-    console.log(`Units fetch response status: ${response.status} ${response.statusText}`);
-
-    if (!response.ok) {
-      console.error(`Error fetching units: ${response.status} ${response.statusText}`);
-      
-      // If we get a 406 error, try an alternative approach
-      if (response.status === 406) {
-        console.log('Attempting alternative fetch method for units due to 406 error');
-        return await fetchUnitsAlternative(buildingId);
-      }
-      
-      throw new Error(`Failed to fetch units: ${response.statusText}`);
+    if (error) {
+      console.error('Supabase error:', error);
+      throw new Error(`Failed to fetch units: ${error.message}`);
     }
 
-    const data = await response.json();
-    console.log(`Successfully fetched ${data.length} units`);
-    
+    if (!data) {
+      throw new Error('No data returned from Supabase');
+    }
+
     return data;
   } catch (error) {
     console.error('Error in getUnits:', error);
@@ -53,112 +35,22 @@ export async function getUnits(buildingId?: string): Promise<Unit[]> {
   }
 }
 
-// Alternative fetch method if the main one fails with 406
-async function fetchUnitsAlternative(buildingId?: string): Promise<Unit[]> {
-  try {
-    console.log(`Using alternative fetch method for units${buildingId ? ` for building: ${buildingId}` : ''}`);
-    
-    // Build the URL with query parameters
-    let url = `${supabaseUrl}/rest/v1/units?select=*&order=unit_number`;
-    if (buildingId) {
-      url += `&building_id=eq.${encodeURIComponent(buildingId)}`;
-    }
-    
-    // Try a simpler fetch with minimal headers
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Alternative fetch failed: ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error in fetchUnitsAlternative:', error);
-    throw error;
-  }
-}
-
 export async function getUnit(id: string): Promise<Unit> {
   try {
-    console.log(`Fetching unit with ID: ${id}`);
-    
-    // Use direct fetch API with proper headers and limit parameter
-    const response = await fetch(`${supabaseUrl}/rest/v1/units?id=eq.${encodeURIComponent(id)}&limit=1`, {
-      method: 'GET',
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-        // Explicitly set Accept header to avoid 406 errors
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      }
-    });
-    
-    // Log the full response for debugging
-    console.log(`Unit fetch response status: ${response.status} ${response.statusText}`);
-    
-    if (!response.ok) {
-      console.error(`Error fetching unit: ${response.status} ${response.statusText}`);
-      
-      // If we get a 406 error, try an alternative approach
-      if (response.status === 406) {
-        console.log('Attempting alternative fetch method for unit due to 406 error');
-        return await fetchUnitAlternative(id);
-      }
-      
-      throw new Error(`Failed to fetch unit: ${response.status} ${response.statusText}`);
-    }
-    
-    const units = await response.json();
-    console.log(`Received data for unit query:`, units);
-    
-    if (!units || units.length === 0) {
-      console.error(`Unit not found with ID: ${id}`);
-      throw new Error(`Unit not found with ID: ${id}`);
-    }
-    
-    return units[0];
-  } catch (error) {
-    console.error(`Failed to fetch unit (${id}):`, error);
-    throw error;
-  }
-}
+    const { data, error } = await supabase
+      .from('units')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-// Alternative fetch method if the main one fails with 406
-async function fetchUnitAlternative(id: string): Promise<Unit> {
-  try {
-    console.log(`Using alternative fetch method for unit with ID: ${id}`);
-    
-    // Try a simpler fetch with minimal headers
-    const response = await fetch(`${supabaseUrl}/rest/v1/units?id=eq.${encodeURIComponent(id)}&limit=1`, {
-      method: 'GET',
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Alternative fetch failed: ${response.status} ${response.statusText}`);
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
     }
-    
-    const units = await response.json();
-    
-    if (!units || units.length === 0) {
-      throw new Error(`Unit not found with ID: ${id} (alternative method)`);
-    }
-    
-    return units[0];
+
+    return data;
   } catch (error) {
-    console.error(`Failed with alternative fetch for unit (${id}):`, error);
+    console.error('Error in getUnit:', error);
     throw error;
   }
 }
