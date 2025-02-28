@@ -1,69 +1,107 @@
-# Welcome to your Lovable project
+# QR Code Hub
 
-## Project info
+A comprehensive hotel/property management system for QR code-based food and service ordering.
 
-**URL**: https://lovable.dev/projects/b48995d8-45c7-4b98-9a2b-1c68c824205f
+## Features
 
-## How can I edit this code?
+- **QR Code Generation**: Generate unique QR codes for each unit that link to a digital menu.
+- **Unit Management**: Track and manage units and buildings, including QR code assignment.
+- **Menu Management**: Create and manage menu items with categories, prices, and availability.
+- **Service Management**: Manage services offered with durations, prices, and categories.
+- **Order Processing**: Accept and process orders from guests via QR code scans.
+- **Mobile-Friendly Interface**: Responsive design for both admin and guest-facing pages.
 
-There are several ways of editing your application.
+## System Architecture
 
-**Use Lovable**
+The application is built with:
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b48995d8-45c7-4b98-9a2b-1c68c824205f) and start prompting.
+- **Next.js**: React framework for server and client-side rendering
+- **Supabase**: Backend database and authentication
+- **Tailwind CSS**: Utility-first CSS framework for styling
+- **TypeScript**: Type-safe JavaScript for better development experience
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started
 
-**Use your preferred IDE**
+### Prerequisites
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Node.js (v16+)
+- npm or yarn
+- Supabase account
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Installation
 
-Follow these steps:
+1. Clone the repository
+   ```bash
+   git clone https://github.com/yourusername/myqrcode-hub.git
+   cd myqrcode-hub
+   ```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+2. Install dependencies
+   ```bash
+   npm install
+   ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+3. Set up environment variables (create a `.env.local` file)
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+4. Run the development server
+   ```bash
+   npm run dev
+   ```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-**Edit a file directly in GitHub**
+### Database Setup
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Run the SQL scripts in the following order to set up your Supabase database:
 
-**Use GitHub Codespaces**
+1. `buildings_schema.sql`
+2. `units_schema.sql`
+3. `menu_items_schema.sql`
+4. `services_schema.sql`
+5. `orders_schema.sql`
+6. `order_items_schema.sql`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Usage Flow
 
-## What technologies are used for this project?
+### Admin Flow
 
-This project is built with .
+1. **Login**: Administrators log in to the dashboard
+2. **Unit Management**: 
+   - Create buildings and units
+   - Generate and assign QR codes to units
+3. **Menu & Services Management**:
+   - Create and categorize menu items 
+   - Set up services with pricing and durations
+4. **Order Management**:
+   - View incoming orders from guests
+   - Update order status (received, in-progress, completed)
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Guest Flow
 
-## How can I deploy this project?
+1. **Scan QR Code**: Guest scans the QR code in their unit
+2. **Browse Menu/Services**: View available food, drinks, and services
+3. **Place Order**: Select items, add to cart, and submit order
+4. **Confirmation**: Receive order confirmation
 
-Simply open [Lovable](https://lovable.dev/projects/b48995d8-45c7-4b98-9a2b-1c68c824205f) and click on Share -> Publish.
+## QR Code Implementation
 
-## I want to use a custom domain - is that possible?
+The system uses the following approach for QR codes:
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+1. **Generation**: QR codes are generated for each unit containing a URL with the unit ID
+2. **Storage**: QR codes are stored in Supabase storage and linked to unit records
+3. **Scanning**: When scanned, the QR code directs to the order page with the unit ID
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- [Next.js](https://nextjs.org/)
+- [Supabase](https://supabase.io/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [shadcn/ui](https://ui.shadcn.com/)
