@@ -15,17 +15,21 @@ import { CreateOrderInput } from '../types/order';
 import { QrCode, UtensilsCrossed, Coffee, Pizza, Cake, Star, Clock, Bed, Bath, Briefcase, Wrench, Plus, Minus, ShoppingCart, ArrowLeft, Check, AlertTriangle, Info } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
-// Client component wrapper that uses useSearchParams
+// Client component wrapper
 function OrderPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+      <SearchParamsReader />
+    </Suspense>
+  );
+}
+
+// Component that reads search params - safely inside Suspense
+function SearchParamsReader() {
   const searchParams = useSearchParams();
   const unitId = searchParams.get('unit');
   
-  // If no unitId is provided, we'll show an error in the OrderPage component
-  return (
-    <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
-      <OrderPage unitId={unitId || ''} />
-    </Suspense>
-  );
+  return <OrderPage unitId={unitId || ''} />;
 }
 
 // Main component that accepts unitId as a prop
