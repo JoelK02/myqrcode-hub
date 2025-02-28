@@ -8,24 +8,40 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Base URL for the guest ordering page
 const getBaseOrderUrl = () => {
-  // First prioritize environment variable
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return `${process.env.NEXT_PUBLIC_APP_URL}/order`;
+  try {
+    // First prioritize environment variable
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      // Remove any trailing slash to ensure consistent URL formatting
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL.endsWith('/')
+        ? process.env.NEXT_PUBLIC_APP_URL.slice(0, -1)
+        : process.env.NEXT_PUBLIC_APP_URL;
+      
+      console.log(`[URL Debug] Using NEXT_PUBLIC_APP_URL: ${baseUrl}/order`);
+      return `${baseUrl}/order`;
+    }
+    
+    // Fall back to client-side origin detection only if env var isn't available
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin;
+      console.log(`[URL Debug] Using window.location.origin: ${origin}/order`);
+      return `${origin}/order`;
+    }
+    
+    // Last resort fallback
+    console.log('[URL Debug] Using hardcoded fallback URL');
+    return 'https://myqrcode-hub.vercel.app/order';
+  } catch (error) {
+    // In case of any errors, return the fallback URL
+    console.error('[URL Debug] Error in getBaseOrderUrl:', error);
+    return 'https://myqrcode-hub.vercel.app/order';
   }
-  
-  // Fall back to client-side origin detection only if env var isn't available
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}/order`;
-  }
-  
-  // Last resort fallback
-  return 'https://myqrcode-hub.vercel.app/order';
 };
 
 // Generate a QR code data URL 
 export async function generateQRCodeDataUrl(unitId: string): Promise<string> {
   try {
     const orderUrl = `${getBaseOrderUrl()}?unit=${unitId}`;
+    console.log(`[QR Debug] Generated order URL for data URL: ${orderUrl}`);
     
     // Generate QR code data URL
     const dataUrl = await QRCode.toDataURL(orderUrl, {

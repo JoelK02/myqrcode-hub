@@ -18,7 +18,17 @@ import { createClient } from '@supabase/supabase-js';
 // Client component wrapper
 function OrderPageWrapper() {
   return (
-    <Suspense key="order-search-params" fallback={<div className="p-8 text-center">Loading...</div>}>
+    <Suspense key="order-search-params" fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md flex flex-col items-center">
+          <div className="mb-4 animate-spin">
+            <QrCode className="h-10 w-10 text-primary" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Loading Order Page</h2>
+          <p className="text-center text-muted-foreground">Please wait while we prepare your menu and services...</p>
+        </div>
+      </div>
+    }>
       <SearchParamsReader />
     </Suspense>
   );
@@ -27,14 +37,38 @@ function OrderPageWrapper() {
 // Component that reads search params - safely inside Suspense
 function SearchParamsReader() {
   const searchParams = useSearchParams();
-  const unitId = searchParams.get('unit');
   
-  // Add client-side logging to help diagnose mobile issues
+  // Extract unitId and handle potential issues with the URL format
+  let unitId = searchParams.get('unit');
+  
+  // Add advanced client-side logging to help diagnose mobile issues
   useEffect(() => {
-    console.log("SearchParamsReader executed");
-    console.log("Search params:", Object.fromEntries([...searchParams.entries()]));
-    console.log("Unit ID from params:", unitId);
-    console.log("Current window location:", window.location.href);
+    console.log("[ORDER DEBUG] SearchParamsReader executed");
+    console.log("[ORDER DEBUG] Current URL:", window.location.href);
+    console.log("[ORDER DEBUG] Search params object:", Object.fromEntries([...searchParams.entries()]));
+    console.log("[ORDER DEBUG] Unit ID from params:", unitId);
+    
+    // Check for common URL issues
+    if (!unitId && window.location.href.includes('unit=')) {
+      console.log("[ORDER DEBUG] Unit parameter present in URL but not extracted by useSearchParams");
+      
+      // Try to extract manually as fallback
+      try {
+        const url = new URL(window.location.href);
+        const manualUnitId = url.searchParams.get('unit');
+        console.log("[ORDER DEBUG] Manually extracted unit ID:", manualUnitId);
+        
+        if (manualUnitId) {
+          unitId = manualUnitId;
+          console.log("[ORDER DEBUG] Using manually extracted unit ID");
+        }
+      } catch (err) {
+        console.error("[ORDER DEBUG] Error manually parsing URL:", err);
+      }
+    }
+    
+    // Report user agent for diagnostics
+    console.log("[ORDER DEBUG] User agent:", navigator.userAgent);
   }, [searchParams, unitId]);
   
   return <OrderPage unitId={unitId || ''} />;
@@ -48,6 +82,7 @@ function OrderPage({ unitId }: { unitId: string }) {
   const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'menu' | 'service'>('menu');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<{ 
@@ -65,35 +100,67 @@ function OrderPage({ unitId }: { unitId: string }) {
   
   // Effect to load the unit data
   useEffect(() => {
-    console.log("Order page loading, unit ID:", unitId);
+    console.log("[ORDER DEBUG] OrderPage loading with unit ID:", unitId);
     
     if (!unitId || unitId.trim() === '') {
-      setError("No unit specified");
+      const errorMsg = "No unit specified in the URL. The QR code might be invalid.";
+      console.error("[ORDER DEBUG] Error:", errorMsg);
+      setError(errorMsg);
+      setErrorDetails("Check that the QR code contains a valid unit parameter.");
       setIsLoading(false);
       return;
     }
 
     async function fetchUnitData() {
       try {
+        console.log("[ORDER DEBUG] Fetching unit data for ID:", unitId);
+        
         // Use the proper service functions instead of direct supabase calls
         const unitData = await getUnit(unitId);
+        console.log("[ORDER DEBUG] Unit data received:", unitData);
         setUnit(unitData);
         
         // Now fetch the building data
         if (unitData.building_id) {
+          console.log("[ORDER DEBUG] Fetching building data for ID:", unitData.building_id);
           const buildingData = await getBuilding(unitData.building_id);
+          console.log("[ORDER DEBUG] Building data received:", buildingData);
           setBuilding(buildingData);
+        } else {
+          console.warn("[ORDER DEBUG] No building ID found in unit data");
         }
         
         // Fetch menu items and services
+        console.log("[ORDER DEBUG] Fetching menu items");
         const menuData = await getMenuItems();
+        console.log("[ORDER DEBUG] Menu items received:", menuData.length);
         setMenuItems(menuData);
         
+        console.log("[ORDER DEBUG] Fetching services");
         const servicesData = await getServices();
+        console.log("[ORDER DEBUG] Services received:", servicesData.length);
         setServices(servicesData);
+        
+        console.log("[ORDER DEBUG] All data loaded successfully");
       } catch (err) {
-        console.error("Error fetching data:", err);
-        setError("Failed to load data. Please try again.");
+        console.error("[ORDER DEBUG] Error fetching data:", err);
+        
+        // Provide more helpful error messages based on the specific error
+        if (err instanceof Error) {
+          if (err.message.includes('network') || err.message.includes('fetch')) {
+            setError("Network error. Please check your internet connection.");
+            setErrorDetails(`Technical details: ${err.message}`);
+          } else if (err.message.includes('not found') || err.message.includes('404')) {
+            setError(`Unit ${unitId} not found. The QR code may be invalid.`);
+            setErrorDetails(`Technical details: ${err.message}`);
+          } else {
+            setError("Failed to load data. Please try again.");
+            setErrorDetails(`Technical details: ${err.message}`);
+          }
+        } else {
+          setError("An unknown error occurred.");
+          setErrorDetails(`Technical details: ${String(err)}`);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -255,49 +322,160 @@ function OrderPage({ unitId }: { unitId: string }) {
   
   if (error) {
     return (
-      <div className="p-8 text-center">
-        <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
-        <p className="mb-4">{error}</p>
-        <p>Please try again or contact support.</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md">
+          <div className="mb-6 flex justify-center">
+            <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertTriangle className="h-8 w-8 text-red-600" />
+            </div>
+          </div>
+          
+          <h1 className="text-2xl font-bold mb-4 text-center">{error}</h1>
+          
+          {errorDetails && (
+            <div className="bg-gray-100 p-4 rounded-md mb-6 text-sm">
+              <p className="font-medium mb-1">Technical Details:</p>
+              <p className="text-gray-700">{errorDetails}</p>
+            </div>
+          )}
+          
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full py-3 bg-primary text-primary-foreground rounded-md flex items-center justify-center gap-2"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
   
   if (isLoading) {
     return (
-      <div className="p-8 flex flex-col items-center justify-center">
-        <div className="animate-spin mb-4">
-          <QrCode className="h-8 w-8" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md flex flex-col items-center">
+          <div className="mb-4 animate-spin">
+            <QrCode className="h-10 w-10 text-primary" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Loading Menu & Services</h2>
+          <p className="text-center text-muted-foreground mb-6">Please wait while we load available items for your unit...</p>
+          
+          <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+            <div className="bg-primary h-full animate-pulse" style={{ width: '70%' }}></div>
+          </div>
         </div>
-        <p>Loading...</p>
       </div>
     );
   }
   
   if (!unit) {
     return (
-      <div className="p-8 text-center">
-        <h1 className="text-2xl font-bold mb-4">Unit Not Found</h1>
-        <p>The QR code you scanned does not link to a valid unit. Please try again or contact support.</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md">
+          <div className="mb-6 flex justify-center">
+            <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
+              <QrCode className="h-8 w-8 text-amber-600" />
+            </div>
+          </div>
+          
+          <h1 className="text-2xl font-bold mb-4 text-center">Unit Not Found</h1>
+          <p className="text-center mb-6">
+            The QR code you scanned doesn't link to a valid unit. This could be because:
+          </p>
+          
+          <ul className="list-disc pl-5 mb-6 space-y-2">
+            <li>The QR code is outdated or has been replaced</li>
+            <li>The unit may have been removed from the system</li>
+            <li>There might be a technical issue with the QR code</li>
+          </ul>
+          
+          <div className="flex justify-center">
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-md flex items-center justify-center gap-2"
+            >
+              Try Again
+            </button>
+          </div>
+          
+          <div className="mt-6 p-3 bg-primary/10 rounded-md flex gap-2">
+            <Info className="h-5 w-5 text-primary flex-shrink-0" />
+            <p className="text-xs">
+              If this issue persists, please contact the property management staff for assistance.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
   
   if (isSuccess) {
     return (
-      <div className="p-8 flex flex-col items-center justify-center">
-        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
-          <Check className="h-8 w-8 text-green-600" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md">
+          <div className="mb-6 flex justify-center">
+            <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center">
+              <Check className="h-8 w-8 text-green-600" />
+            </div>
+          </div>
+          
+          <h1 className="text-2xl font-bold mb-2 text-center">Order Submitted!</h1>
+          <p className="text-center mb-6">
+            Thank you for your order. Your request has been received and will be processed shortly.
+            {building && unit && (
+              <span className="block mt-2">
+                Your items will be delivered to Unit {unit.unit_number} in {building.name}.
+              </span>
+            )}
+          </p>
+          
+          <div className="space-y-3 mb-8">
+            <div className="bg-green-50 p-4 rounded-md border border-green-100">
+              <div className="flex items-center">
+                <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                  <Check className="h-4 w-4 text-green-600" />
+                </div>
+                <div>
+                  <p className="font-medium">Order Received</p>
+                  <p className="text-sm text-muted-foreground">We've received your order and it's being processed</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gray-50 p-4 rounded-md border border-gray-100">
+              <div className="flex items-center">
+                <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center mr-3">
+                  <span className="text-sm font-medium">2</span>
+                </div>
+                <div>
+                  <p className="font-medium">Preparation</p>
+                  <p className="text-sm text-muted-foreground">Your order is being prepared</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gray-50 p-4 rounded-md border border-gray-100">
+              <div className="flex items-center">
+                <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center mr-3">
+                  <span className="text-sm font-medium">3</span>
+                </div>
+                <div>
+                  <p className="font-medium">Delivery</p>
+                  <p className="text-sm text-muted-foreground">Your order will be delivered to your unit</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-center">
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 bg-primary text-primary-foreground rounded-md flex items-center justify-center gap-2"
+            >
+              Place Another Order
+            </button>
+          </div>
         </div>
-        <h1 className="text-2xl font-bold mb-2">Order Submitted!</h1>
-        <p className="text-center mb-6">Thank you for your order. Your request has been received and will be processed shortly.</p>
-        
-        <button 
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
-        >
-          Place Another Order
-        </button>
       </div>
     );
   }

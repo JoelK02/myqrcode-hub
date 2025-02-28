@@ -7,26 +7,34 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function getMenuItems(category?: string): Promise<MenuItem[]> {
   try {
-    let query = supabase
-      .from('menu_items')
-      .select('*')
-      .order('name');
+    console.log(`Fetching menu items${category ? ` for category: ${category}` : ''}`);
     
+    // Build the URL with query parameters
+    let url = `${supabaseUrl}/rest/v1/menu_items?select=*&order=name`;
     if (category) {
-      query = query.eq('category', category);
+      url += `&category=eq.${encodeURIComponent(category)}`;
     }
     
-    const { data, error } = await query;
+    // Use direct fetch with proper headers to avoid 406 errors
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      }
+    });
 
-    if (error) {
-      console.error('Supabase error:', error);
-      throw new Error(`Failed to fetch menu items: ${error.message}`);
+    if (!response.ok) {
+      console.error(`Error fetching menu items: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch menu items: ${response.statusText}`);
     }
 
-    if (!data) {
-      throw new Error('No data returned from Supabase');
-    }
-
+    const data = await response.json();
+    console.log(`Successfully fetched ${data.length} menu items`);
+    
     return data;
   } catch (error) {
     console.error('Error in getMenuItems:', error);
@@ -36,18 +44,33 @@ export async function getMenuItems(category?: string): Promise<MenuItem[]> {
 
 export async function getMenuItem(id: string): Promise<MenuItem> {
   try {
-    const { data, error } = await supabase
-      .from('menu_items')
-      .select('*')
-      .eq('id', id)
-      .single();
+    console.log(`Fetching menu item with ID: ${id}`);
+    
+    // Use direct fetch with proper headers to avoid 406 errors
+    const response = await fetch(`${supabaseUrl}/rest/v1/menu_items?id=eq.${id}&limit=1`, {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      }
+    });
 
-    if (error) {
-      console.error('Supabase error:', error);
-      throw error;
+    if (!response.ok) {
+      console.error(`Error fetching menu item: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch menu item: ${response.statusText}`);
     }
 
-    return data;
+    const data = await response.json();
+    
+    if (!data || data.length === 0) {
+      throw new Error(`Menu item with ID ${id} not found`);
+    }
+
+    console.log(`Successfully fetched menu item: ${data[0].name}`);
+    return data[0];
   } catch (error) {
     console.error('Error in getMenuItem:', error);
     throw error;

@@ -8,45 +8,149 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export const getServices = async (category?: string): Promise<Service[]> => {
   try {
-    let query = supabase
-      .from('services')
-      .select('*')
-      .order('name');
+    console.log(`Fetching services${category ? ` for category: ${category}` : ''}`);
     
+    // Build the URL with query parameters
+    let url = `${supabaseUrl}/rest/v1/services?select=*&order=name`;
     if (category) {
-      query = query.eq('category', category);
+      url += `&category=eq.${encodeURIComponent(category)}`;
     }
     
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error('Error fetching services:', error);
-      throw new Error(error.message);
+    // Use direct fetch with proper headers to avoid 406 errors
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`Error fetching services: ${response.status} ${response.statusText}`);
+      
+      // If we get a 406 error, try an alternative approach
+      if (response.status === 406) {
+        console.log('Attempting alternative fetch method for services due to 406 error');
+        return await fetchServicesAlternative(category);
+      }
+      
+      throw new Error(`Failed to fetch services: ${response.statusText}`);
     }
+
+    const data = await response.json();
+    console.log(`Successfully fetched ${data.length} services`);
     
-    return data || [];
+    return data;
   } catch (error) {
     console.error('Error in getServices:', error);
     throw error;
   }
 };
 
-export const getService = async (id: string): Promise<Service> => {
+// Alternative fetch method if the main one fails with 406
+const fetchServicesAlternative = async (category?: string): Promise<Service[]> => {
   try {
-    const { data, error } = await supabase
-      .from('services')
-      .select('*')
-      .eq('id', id)
-      .single();
+    console.log(`Using alternative fetch method for services${category ? ` for category: ${category}` : ''}`);
     
-    if (error) {
-      console.error('Error fetching service:', error);
-      throw new Error(error.message);
+    // Build the URL with query parameters
+    let url = `${supabaseUrl}/rest/v1/services?select=*&order=name`;
+    if (category) {
+      url += `&category=eq.${encodeURIComponent(category)}`;
     }
     
+    // Try a simpler fetch with minimal headers
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Alternative fetch failed: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
     return data;
   } catch (error) {
+    console.error('Error in fetchServicesAlternative:', error);
+    throw error;
+  }
+};
+
+export const getService = async (id: string): Promise<Service> => {
+  try {
+    console.log(`Fetching service with ID: ${id}`);
+    
+    // Use direct fetch with proper headers to avoid 406 errors
+    const response = await fetch(`${supabaseUrl}/rest/v1/services?id=eq.${encodeURIComponent(id)}&limit=1`, {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`Error fetching service: ${response.status} ${response.statusText}`);
+      
+      // If we get a 406 error, try an alternative approach
+      if (response.status === 406) {
+        console.log('Attempting alternative fetch method for service due to 406 error');
+        return await fetchServiceAlternative(id);
+      }
+      
+      throw new Error(`Failed to fetch service: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data || data.length === 0) {
+      throw new Error(`Service not found with ID: ${id}`);
+    }
+
+    console.log(`Successfully fetched service: ${data[0].name}`);
+    return data[0];
+  } catch (error) {
     console.error('Error in getService:', error);
+    throw error;
+  }
+};
+
+// Alternative fetch method if the main one fails with 406
+const fetchServiceAlternative = async (id: string): Promise<Service> => {
+  try {
+    console.log(`Using alternative fetch method for service with ID: ${id}`);
+    
+    // Try a simpler fetch with minimal headers
+    const response = await fetch(`${supabaseUrl}/rest/v1/services?id=eq.${encodeURIComponent(id)}&limit=1`, {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Alternative fetch failed: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data || data.length === 0) {
+      throw new Error(`Service not found with ID: ${id} (alternative method)`);
+    }
+    
+    return data[0];
+  } catch (error) {
+    console.error(`Failed with alternative fetch for service (${id}):`, error);
     throw error;
   }
 };
