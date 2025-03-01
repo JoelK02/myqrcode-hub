@@ -68,7 +68,7 @@ export function Sidebar() {
         {expanded ? (
           <h2 className="text-xl font-semibold">myQRcode</h2>
         ) : (
-          <span className="text-xl font-bold mx-auto">QR</span>
+          <span className=""></span>
         )}
         <button 
           onClick={toggleSidebar} 

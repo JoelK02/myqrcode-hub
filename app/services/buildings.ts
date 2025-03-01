@@ -29,38 +29,17 @@ export async function getBuildings(): Promise<Building[]> {
 }
 
 export async function getBuilding(id: string): Promise<Building> {
-  try {
-    console.log(`Fetching building with ID: ${id}`);
-    
-    // Use direct fetch API with proper headers to avoid 406 errors
-    const response = await fetch(`${supabaseUrl}/rest/v1/buildings?id=eq.${id}&limit=1`, {
-      method: 'GET',
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      }
-    });
+  const { data, error } = await supabase
+    .from('buildings')
+    .select('*')
+    .eq('id', id)
+    .single();
 
-    if (!response.ok) {
-      console.error(`Error fetching building: ${response.status} ${response.statusText}`);
-      throw new Error(`Failed to fetch building: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log('Building data received:', data);
-    
-    if (!data || data.length === 0) {
-      throw new Error(`Building with ID ${id} not found`);
-    }
-
-    return data[0];
-  } catch (error) {
-    console.error('Error in getBuilding:', error);
+  if (error) {
     throw error;
   }
+
+  return data;
 }
 
 export async function createBuilding(building: CreateBuildingInput): Promise<Building> {
