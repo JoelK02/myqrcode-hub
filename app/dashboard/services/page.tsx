@@ -10,7 +10,7 @@ import { getBuildings } from '../../services/buildings';
 import { MenuItemDialog } from '../../components/menu/MenuItemDialog';
 import { ServiceDialog } from '../../components/service/ServiceDialog';
 import { UtensilsCrossed, Plus, Pencil, Trash2, Coffee, Pizza, Cake, Star, Clock, Bed, Bath, Briefcase, Wrench, BookPlus, Building2, FilterX } from 'lucide-react';
-import addBasicServices from './add-basic-services';
+
 
 export default function ServicesPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
