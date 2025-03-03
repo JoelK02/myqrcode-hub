@@ -5,7 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export async function getMenuItems(category?: string): Promise<MenuItem[]> {
+export async function getMenuItems(category?: string, building_id?: string): Promise<MenuItem[]> {
   try {
     let query = supabase
       .from('menu_items')
@@ -14,6 +14,10 @@ export async function getMenuItems(category?: string): Promise<MenuItem[]> {
     
     if (category) {
       query = query.eq('category', category);
+    }
+    
+    if (building_id) {
+      query = query.eq('building_id', building_id);
     }
     
     const { data, error } = await query;

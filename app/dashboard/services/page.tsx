@@ -3,16 +3,20 @@
 import React, { useEffect, useState } from 'react';
 import { MenuItem } from '../../types/menu';
 import { Service } from '../../types/service';
+import { Building } from '../../types/buildings';
 import { getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem } from '../../services/menu';
 import { getServices, createService, updateService, deleteService } from '../../services/service';
+import { getBuildings } from '../../services/buildings';
 import { MenuItemDialog } from '../../components/menu/MenuItemDialog';
 import { ServiceDialog } from '../../components/service/ServiceDialog';
-import { UtensilsCrossed, Plus, Pencil, Trash2, Coffee, Pizza, Cake, Star, Clock, Bed, Bath, Briefcase, Wrench, BookPlus } from 'lucide-react';
+import { UtensilsCrossed, Plus, Pencil, Trash2, Coffee, Pizza, Cake, Star, Clock, Bed, Bath, Briefcase, Wrench, BookPlus, Building2, FilterX } from 'lucide-react';
 import addBasicServices from './add-basic-services';
 
 export default function ServicesPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFilterLoading, setIsFilterLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,18 +28,34 @@ export default function ServicesPage() {
   const [activeServiceCategory, setActiveServiceCategory] = useState<string | null>(null);
   const [isAddingBasicServices, setIsAddingBasicServices] = useState(false);
 
-  // Fetch menu items and services on component mount
+  // Fetch menu items, services, and buildings on component mount
   useEffect(() => {
     let isMounted = true;
 
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const menuData = await getMenuItems();
-        const servicesData = await getServices();
+        const [menuData, servicesData, buildingsData] = await Promise.all([
+          getMenuItems(),
+          getServices(),
+          getBuildings()
+        ]);
+        
         if (isMounted) {
           setMenuItems(menuData);
           setServices(servicesData);
+          setBuildings(buildingsData);
+          
+          // Automatically select the first building if available
+          if (buildingsData.length > 0) {
+            setSelectedBuildingId(buildingsData[0].id);
+            // Load menu items and services for the selected building
+            const filteredMenuItems = await getMenuItems(undefined, buildingsData[0].id);
+            setMenuItems(filteredMenuItems);
+            const filteredServices = await getServices(undefined, buildingsData[0].id);
+            setServices(filteredServices);
+          }
+          
           setError(null);
         }
       } catch (err) {
@@ -57,10 +77,10 @@ export default function ServicesPage() {
     };
   }, []);
 
-  const loadMenuItems = async (category?: string) => {
+  const loadMenuItems = async (category?: string, buildingId?: string) => {
     try {
       setIsFilterLoading(true);
-      const data = await getMenuItems(category || undefined);
+      const data = await getMenuItems(category || undefined, buildingId || undefined);
       setMenuItems(data);
       setError(null);
     } catch (err) {
@@ -75,7 +95,7 @@ export default function ServicesPage() {
     try {
       await createMenuItem(data);
       setIsFilterLoading(true);
-      const newItems = await getMenuItems(activeCategory || undefined);
+      const newItems = await getMenuItems(activeCategory || undefined, selectedBuildingId || undefined);
       setMenuItems(newItems);
       setError(null);
     } catch (err) {
@@ -90,7 +110,7 @@ export default function ServicesPage() {
     try {
       await updateMenuItem(data);
       setIsFilterLoading(true);
-      const newItems = await getMenuItems(activeCategory || undefined);
+      const newItems = await getMenuItems(activeCategory || undefined, selectedBuildingId || undefined);
       setMenuItems(newItems);
       setError(null);
     } catch (err) {
@@ -109,7 +129,7 @@ export default function ServicesPage() {
     try {
       await deleteMenuItem(id);
       setIsFilterLoading(true);
-      const newItems = await getMenuItems(activeCategory || undefined);
+      const newItems = await getMenuItems(activeCategory || undefined, selectedBuildingId || undefined);
       setMenuItems(newItems);
       setError(null);
     } catch (err) {
@@ -132,7 +152,13 @@ export default function ServicesPage() {
 
   const handleCategoryFilter = (category: string | null) => {
     setActiveCategory(category);
-    loadMenuItems(category || undefined);
+    loadMenuItems(category || undefined, selectedBuildingId || undefined);
+  };
+
+  const handleBuildingFilter = (buildingId: string) => {
+    setSelectedBuildingId(buildingId);
+    loadMenuItems(activeCategory || undefined, buildingId);
+    loadServices(activeServiceCategory || undefined, buildingId);
   };
 
   const getCategoryIcon = (category: string) => {
@@ -158,10 +184,10 @@ export default function ServicesPage() {
   };
 
   // Service related functions
-  const loadServices = async (category?: string) => {
+  const loadServices = async (category?: string, buildingId?: string) => {
     try {
       setIsFilterLoading(true);
-      const data = await getServices(category || undefined);
+      const data = await getServices(category || undefined, buildingId || undefined);
       setServices(data);
       setError(null);
     } catch (err) {
@@ -233,7 +259,7 @@ export default function ServicesPage() {
 
   const handleServiceCategoryFilter = (category: string | null) => {
     setActiveServiceCategory(category);
-    loadServices(category || undefined);
+    loadServices(category || undefined, selectedBuildingId || undefined);
   };
 
   const getServiceCategoryIcon = (category: string) => {
@@ -259,6 +285,11 @@ export default function ServicesPage() {
       const remainingMinutes = minutes % 60;
       return remainingMinutes > 0 ? `${hours} hr ${remainingMinutes} min` : `${hours} hour${hours > 1 ? 's' : ''}`;
     }
+  };
+
+  const getBuildingName = (buildingId: string) => {
+    const building = buildings.find(b => b.id === buildingId);
+    return building ? building.name : 'Unknown Building';
   };
 
   const handleAddBasicServices = async () => {
@@ -306,9 +337,43 @@ export default function ServicesPage() {
           className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="h-5 w-5" />
-          Add Menu Item
+          {selectedBuildingId ? `Add Item to ${getBuildingName(selectedBuildingId)}` : "Add Menu Item"}
         </button>
       </header>
+
+      {/* Building Selector */}
+      <div className="bg-muted/50 p-4 rounded-lg">
+        <div className="flex items-center gap-2 mb-3">
+          <Building2 className="h-5 w-5 text-primary" />
+          <h2 className="font-medium">Select Building</h2>
+        </div>
+        
+        <div className="flex flex-wrap gap-2">
+          {buildings.length === 0 ? (
+            <div className="text-muted-foreground px-4 py-2">
+              No buildings available. Please add buildings first.
+            </div>
+          ) : (
+            buildings.map((building) => (
+              <button
+                key={building.id}
+                onClick={() => handleBuildingFilter(building.id)}
+                disabled={isFilterLoading}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md transition-opacity ${
+                  isFilterLoading ? 'opacity-70' : 'opacity-100'
+                } ${
+                  selectedBuildingId === building.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground'
+                }`}
+              >
+                <Building2 className="h-4 w-4" />
+                {building.name}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
 
       {/* Category Filter */}
       <div className="flex flex-wrap gap-2">
@@ -355,7 +420,11 @@ export default function ServicesPage() {
         {menuItems.length === 0 ? (
           <div className="text-center py-12 bg-card rounded-lg border">
             <p className="text-muted-foreground">
-              {activeCategory
+              {selectedBuildingId && activeCategory
+                ? `No ${activeCategory} items found for this building. Add your first ${activeCategory} item to get started.`
+                : selectedBuildingId
+                ? 'No menu items found for this building. Add your first menu item to get started.'
+                : activeCategory
                 ? `No ${activeCategory} items found. Add your first ${activeCategory} item to get started.`
                 : 'No menu items found. Add your first menu item to get started.'}
             </p>
@@ -389,6 +458,13 @@ export default function ServicesPage() {
                       alt={item.name}
                       className="w-full h-full object-cover"
                     />
+                  </div>
+                )}
+
+                {item.building_id && (
+                  <div className="mb-4 text-sm flex items-center gap-2 text-muted-foreground">
+                    <Building2 className="h-4 w-4" />
+                    <span>{getBuildingName(item.building_id)}</span>
                   </div>
                 )}
 
@@ -433,7 +509,7 @@ export default function ServicesPage() {
             className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="h-5 w-5" />
-            Add Service
+            {selectedBuildingId ? `Add Service to ${getBuildingName(selectedBuildingId)}` : "Add Service"}
           </button>
         </div>
 
@@ -563,6 +639,7 @@ export default function ServicesPage() {
         onSubmit={selectedMenuItem ? handleUpdateMenuItem : handleCreateMenuItem}
         menuItem={selectedMenuItem}
         title={selectedMenuItem ? 'Edit Menu Item' : 'Add Menu Item'}
+        defaultBuildingId={selectedMenuItem ? undefined : selectedBuildingId}
       />
 
       <ServiceDialog
@@ -571,6 +648,7 @@ export default function ServicesPage() {
         onSubmit={selectedService ? handleUpdateService : handleCreateService}
         service={selectedService}
         title={selectedService ? 'Edit Service' : 'Add Service'}
+        defaultBuildingId={selectedService ? undefined : selectedBuildingId}
       />
     </div>
   );

@@ -1,5 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Service, CreateServiceInput, UpdateServiceInput } from '../../types/service';
+import { createClient } from '@supabase/supabase-js';
+
+// Setup Supabase client for building data
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Simple interface for building options
+interface BuildingOption {
+  id: string;
+  name: string;
+}
 
 interface ServiceDialogProps {
   isOpen: boolean;
@@ -7,9 +19,17 @@ interface ServiceDialogProps {
   onSubmit: (data: CreateServiceInput | UpdateServiceInput) => Promise<void>;
   service?: Service;
   title: string;
+  defaultBuildingId?: string | null;
 }
 
-export function ServiceDialog({ isOpen, onClose, onSubmit, service, title }: ServiceDialogProps) {
+export function ServiceDialog({ 
+  isOpen, 
+  onClose, 
+  onSubmit, 
+  service, 
+  title,
+  defaultBuildingId
+}: ServiceDialogProps) {
   const [formData, setFormData] = useState<CreateServiceInput>({
     name: '',
     description: '',
@@ -17,12 +37,40 @@ export function ServiceDialog({ isOpen, onClose, onSubmit, service, title }: Ser
     duration: 60,
     category: 'housekeeping',
     is_available: true,
+    building_id: undefined
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [buildings, setBuildings] = useState<BuildingOption[]>([]);
+  const [buildingsLoading, setBuildingsLoading] = useState(false);
+
+  // Fetch buildings list
+  useEffect(() => {
+    async function fetchBuildings() {
+      if (!isOpen) return;
+      
+      try {
+        setBuildingsLoading(true);
+        const { data, error } = await supabase
+          .from('buildings')
+          .select('id, name')
+          .order('name');
+          
+        if (error) throw error;
+        setBuildings(data || []);
+      } catch (err) {
+        console.error('Error fetching buildings:', err);
+      } finally {
+        setBuildingsLoading(false);
+      }
+    }
+    
+    fetchBuildings();
+  }, [isOpen]);
 
   useEffect(() => {
     if (service) {
+      // If editing an existing service
       setFormData({
         name: service.name,
         description: service.description,
@@ -30,8 +78,10 @@ export function ServiceDialog({ isOpen, onClose, onSubmit, service, title }: Ser
         duration: service.duration,
         category: service.category,
         is_available: service.is_available,
+        building_id: service.building_id
       });
     } else {
+      // If creating a new service, use default values and defaultBuildingId if provided
       setFormData({
         name: '',
         description: '',
@@ -39,9 +89,10 @@ export function ServiceDialog({ isOpen, onClose, onSubmit, service, title }: Ser
         duration: 60,
         category: 'housekeeping',
         is_available: true,
+        building_id: defaultBuildingId || undefined
       });
     }
-  }, [service, isOpen]);
+  }, [service, isOpen, defaultBuildingId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -54,6 +105,14 @@ export function ServiceDialog({ isOpen, onClose, onSubmit, service, title }: Ser
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
+  };
+
+  const handleBuildingChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      building_id: value ? value : undefined
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -125,6 +184,31 @@ export function ServiceDialog({ isOpen, onClose, onSubmit, service, title }: Ser
                   <option value="concierge">Concierge</option>
                   <option value="maintenance">Maintenance</option>
                 </select>
+              </div>
+              
+              {/* Building selector */}
+              <div>
+                <label htmlFor="building_id" className="block text-sm font-medium mb-1">
+                  Building
+                </label>
+                <select
+                  id="building_id"
+                  name="building_id"
+                  value={formData.building_id || ''}
+                  onChange={handleBuildingChange}
+                  className="w-full p-2 border rounded-md"
+                  disabled={buildingsLoading}
+                >
+                  <option value="">-- Not associated with any building --</option>
+                  {buildings.map(building => (
+                    <option key={building.id} value={building.id}>
+                      {building.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select which building this service is available in
+                </p>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
@@ -215,4 +299,4 @@ export function ServiceDialog({ isOpen, onClose, onSubmit, service, title }: Ser
       </div>
     </div>
   );
-} 
+}

@@ -1,7 +1,19 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MenuItem, CreateMenuItemInput, UpdateMenuItemInput } from '../../types/menu';
+import { createClient } from '@supabase/supabase-js';
+
+// Setup Supabase client for building data
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Simple interface for building options
+interface BuildingOption {
+  id: string;
+  name: string;
+}
 
 interface MenuItemDialogProps {
   isOpen: boolean;
@@ -9,6 +21,7 @@ interface MenuItemDialogProps {
   onSubmit: (data: CreateMenuItemInput | UpdateMenuItemInput) => Promise<void>;
   menuItem?: MenuItem;
   title: string;
+  defaultBuildingId?: string | null;
 }
 
 export function MenuItemDialog({
@@ -16,7 +29,8 @@ export function MenuItemDialog({
   onClose,
   onSubmit,
   menuItem,
-  title
+  title,
+  defaultBuildingId
 }: MenuItemDialogProps) {
   const [formData, setFormData] = React.useState<CreateMenuItemInput>({
     name: '',
@@ -24,32 +38,62 @@ export function MenuItemDialog({
     price: 0,
     category: 'food',
     image_url: '',
-    is_available: true
+    is_available: true,
+    building_id: undefined
   });
   const [isLoading, setIsLoading] = React.useState(false);
+  const [buildings, setBuildings] = useState<BuildingOption[]>([]);
+  const [buildingsLoading, setBuildingsLoading] = useState(false);
+
+  // Fetch buildings list
+  useEffect(() => {
+    async function fetchBuildings() {
+      if (!isOpen) return;
+      
+      try {
+        setBuildingsLoading(true);
+        const { data, error } = await supabase
+          .from('buildings')
+          .select('id, name')
+          .order('name');
+          
+        if (error) throw error;
+        setBuildings(data || []);
+      } catch (err) {
+        console.error('Error fetching buildings:', err);
+      } finally {
+        setBuildingsLoading(false);
+      }
+    }
+    
+    fetchBuildings();
+  }, [isOpen]);
 
   useEffect(() => {
     if (menuItem) {
+      // If editing an existing item, use its data
       setFormData({
         name: menuItem.name,
         description: menuItem.description || '',
         price: menuItem.price,
         category: menuItem.category,
         image_url: menuItem.image_url || '',
-        is_available: menuItem.is_available
+        is_available: menuItem.is_available,
+        building_id: menuItem.building_id
       });
     } else {
-      // Reset form when opening in create mode
+      // If creating a new item, use default values and defaultBuildingId if provided
       setFormData({
         name: '',
         description: '',
         price: 0,
         category: 'food',
         image_url: '',
-        is_available: true
+        is_available: true,
+        building_id: defaultBuildingId || undefined
       });
     }
-  }, [menuItem, isOpen]);
+  }, [menuItem, isOpen, defaultBuildingId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,6 +171,33 @@ export function MenuItemDialog({
               className="w-full rounded-md border px-3 py-2"
               placeholder="0.00"
             />
+          </div>
+
+          {/* Building selector */}
+          <div>
+            <label className="block text-sm font-medium mb-1" htmlFor="building_id">
+              Building
+            </label>
+            <select
+              id="building_id"
+              value={formData.building_id || ''}
+              onChange={(e) => setFormData({ 
+                ...formData, 
+                building_id: e.target.value ? e.target.value : undefined 
+              })}
+              className="w-full rounded-md border px-3 py-2"
+              disabled={buildingsLoading}
+            >
+              <option value="">-- Not associated with any building --</option>
+              {buildings.map(building => (
+                <option key={building.id} value={building.id}>
+                  {building.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Select which building this menu item belongs to
+            </p>
           </div>
 
           <div>

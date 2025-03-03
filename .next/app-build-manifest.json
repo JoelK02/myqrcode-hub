@@ -26,10 +26,15 @@
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/page.js"
     ],
-    "/dashboard/buildings/page": [
+    "/dashboard/services/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/buildings/page.js"
+      "static/chunks/app/dashboard/services/page.js"
+    ],
+    "/dashboard/orders/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/orders/page.js"
     ],
     "/dashboard/units/page": [
       "static/chunks/webpack.js",
@@ -41,10 +46,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/order/page.js"
     ],
-    "/dashboard/qrcodes/page": [
+    "/_not-found/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/qrcodes/page.js"
+      "static/chunks/app/_not-found/page.js"
     ]
   }
 }

@@ -6,7 +6,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-export const getServices = async (category?: string): Promise<Service[]> => {
+export const getServices = async (category?: string, building_id?: string): Promise<Service[]> => {
   try {
     let query = supabase
       .from('services')
@@ -15,6 +15,10 @@ export const getServices = async (category?: string): Promise<Service[]> => {
     
     if (category) {
       query = query.eq('category', category);
+    }
+
+    if (building_id) {
+      query = query.eq('building_id', building_id);
     }
     
     const { data, error } = await query;

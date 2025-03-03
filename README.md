@@ -7,6 +7,7 @@ A comprehensive hotel/property management system for QR code-based food and serv
 - **QR Code Generation**: Generate unique QR codes for each unit that link to a digital menu.
 - **Unit Management**: Track and manage units and buildings, including QR code assignment.
 - **Menu Management**: Create and manage menu items with categories, prices, and availability.
+- **Building-Specific Menus**: Associate menu items with specific buildings to show relevant items for each property.
 - **Service Management**: Manage services offered with durations, prices, and categories.
 - **Order Processing**: Accept and process orders from guests via QR code scans.
 - **Mobile-Friendly Interface**: Responsive design for both admin and guest-facing pages.
@@ -64,6 +65,16 @@ Run the SQL scripts in the following order to set up your Supabase database:
 4. `services_schema.sql`
 5. `orders_schema.sql`
 6. `order_items_schema.sql`
+7. `supabase_anon_policies.sql` (for anonymous access to public data)
+
+## Data Relationships
+
+### Building-Menu Relationship
+
+- Buildings can have multiple menu items
+- Each menu item belongs to one specific building
+- When a user scans a QR code for a unit, they see only the menu items associated with that unit's building
+- Menu items without a building association are considered global/available to all buildings
 
 ## Usage Flow
 
@@ -75,6 +86,7 @@ Run the SQL scripts in the following order to set up your Supabase database:
    - Generate and assign QR codes to units
 3. **Menu & Services Management**:
    - Create and categorize menu items 
+   - Associate menu items with specific buildings
    - Set up services with pricing and durations
 4. **Order Management**:
    - View incoming orders from guests
@@ -83,7 +95,7 @@ Run the SQL scripts in the following order to set up your Supabase database:
 ### Guest Flow
 
 1. **Scan QR Code**: Guest scans the QR code in their unit
-2. **Browse Menu/Services**: View available food, drinks, and services
+2. **Browse Menu/Services**: View available food, drinks, and services specific to their building
 3. **Place Order**: Select items, add to cart, and submit order
 4. **Confirmation**: Receive order confirmation
 

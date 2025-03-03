@@ -8,6 +8,7 @@ export interface Service {
   is_available: boolean;
   created_at: string;
   updated_at: string;
+  building_id: string;
 }
 
 export interface CreateServiceInput {
@@ -17,6 +18,7 @@ export interface CreateServiceInput {
   duration: number;
   category: 'housekeeping' | 'spa' | 'concierge' | 'maintenance';
   is_available: boolean;
+  building_id: string;
 }
 
 export interface UpdateServiceInput extends CreateServiceInput {
