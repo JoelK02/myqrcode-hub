@@ -292,22 +292,7 @@ export default function ServicesPage() {
     return building ? building.name : 'Unknown Building';
   };
 
-  const handleAddBasicServices = async () => {
-    try {
-      setIsAddingBasicServices(true);
-      await addBasicServices();
-      setIsFilterLoading(true);
-      const newServices = await getServices(activeServiceCategory || undefined);
-      setServices(newServices);
-      setError(null);
-    } catch (err) {
-      console.error('Error adding basic services:', err);
-      alert('Failed to add basic services');
-    } finally {
-      setIsAddingBasicServices(false);
-      setIsFilterLoading(false);
-    }
-  };
+  
 
   if (isLoading) {
     return (
@@ -564,7 +549,6 @@ export default function ServicesPage() {
               </p>
               {!activeServiceCategory && (
                 <button
-                  onClick={handleAddBasicServices}
                   disabled={isAddingBasicServices}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/90 disabled:opacity-50"
                 >
