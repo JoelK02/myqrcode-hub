@@ -46,6 +46,16 @@
       "static/chunks/main-app.js",
       "static/chunks/app/order/page.js"
     ],
+    "/dashboard/qrcodes/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/qrcodes/page.js"
+    ],
+    "/dashboard/buildings/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/buildings/page.js"
+    ],
     "/_not-found/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",

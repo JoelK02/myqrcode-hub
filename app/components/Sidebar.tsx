@@ -43,11 +43,6 @@ export function Sidebar() {
       icon: <Home className="h-5 w-5" /> 
     },
     { 
-      name: 'QR Codes', 
-      path: '/dashboard/qrcodes', 
-      icon: <QrCode className="h-5 w-5" /> 
-    },
-    { 
       name: 'Orders & Requests', 
       path: '/dashboard/orders', 
       icon: <ClipboardList className="h-5 w-5" /> 
@@ -68,7 +63,7 @@ export function Sidebar() {
         {expanded ? (
           <h2 className="text-xl font-semibold">myQRcode</h2>
         ) : (
-          <span className=""></span>
+          <></>
         )}
         <button 
           onClick={toggleSidebar} 

@@ -4,14 +4,14 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getMenuItems } from '../services/menu';
 import { getServices } from '../services/service';
-import { createOrder } from '../services/order';
+import { createOrder, getOrders } from '../services/order';
 import { getUnit } from '../services/units';
 import { getBuilding } from '../services/buildings';
 import { Unit } from '../types/units';
 import { Building } from '../types/buildings';
 import { MenuItem } from '../types/menu';
 import { Service } from '../types/service';
-import { CreateOrderInput } from '../types/order';
+import { CreateOrderInput, Order } from '../types/order';
 import { QrCode, UtensilsCrossed, Coffee, Pizza, Cake, Star, Clock, Bed, Bath, Briefcase, Wrench, Plus, Minus, ShoppingCart, ArrowLeft, Check, AlertTriangle, Info } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -38,9 +38,10 @@ function OrderPage({ unitId }: { unitId: string }) {
   const [building, setBuilding] = useState<Building | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'menu' | 'service'>('menu');
+  const [activeTab, setActiveTab] = useState<'menu' | 'service' | 'orders'>('menu');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<{ 
     type: 'menu' | 'service';
@@ -67,22 +68,31 @@ function OrderPage({ unitId }: { unitId: string }) {
 
     async function fetchUnitData() {
       try {
-        // Use the proper service functions instead of direct supabase calls
-        const unitData = await getUnit(unitId);
+        // Use the proper service functions with guest mode enabled
+        const unitData = await getUnit(unitId, true); // Enable guest mode
         setUnit(unitData);
         
         // Now fetch the building data
         if (unitData.building_id) {
-          const buildingData = await getBuilding(unitData.building_id);
+          const buildingData = await getBuilding(unitData.building_id, true); // Enable guest mode
           setBuilding(buildingData);
+          
+          // Fetch menu items and services filtered by building_id
+          const menuData = await getMenuItems(undefined, unitData.building_id);
+          setMenuItems(menuData);
+          
+          const servicesData = await getServices(undefined, unitData.building_id);
+          setServices(servicesData);
+          
+          // Fetch previous orders for this unit
+          const ordersData = await getOrders({ unit_id: unitId });
+          setPreviousOrders(ordersData);
+        } else {
+          // If no building_id exists, set empty arrays
+          setMenuItems([]);
+          setServices([]);
+          setPreviousOrders([]);
         }
-        
-        // Fetch menu items and services
-        const menuData = await getMenuItems();
-        setMenuItems(menuData);
-        
-        const servicesData = await getServices();
-        setServices(servicesData);
       } catch (err) {
         console.error("Error fetching data:", err);
         setError("Failed to load data. Please try again.");
@@ -93,6 +103,11 @@ function OrderPage({ unitId }: { unitId: string }) {
     
     fetchUnitData();
   }, [unitId]);
+  
+  // When changing tabs, reset the active category
+  useEffect(() => {
+    setActiveCategory(null);
+  }, [activeTab]);
   
   const filteredItems = activeTab === 'menu'
     ? activeCategory
@@ -184,7 +199,11 @@ function OrderPage({ unitId }: { unitId: string }) {
         }))
       };
       
-      await createOrder(orderData);
+      const createdOrder = await createOrder(orderData);
+      
+      // Add new order to previous orders
+      setPreviousOrders([createdOrder, ...previousOrders]);
+      
       setIsSuccess(true);
       // Clear cart
       setCart([]);
@@ -242,6 +261,27 @@ function OrderPage({ unitId }: { unitId: string }) {
       const hours = Math.floor(minutes / 60);
       const remainingMinutes = minutes % 60;
       return remainingMinutes > 0 ? `${hours} hr ${remainingMinutes} min` : `${hours} hour${hours > 1 ? 's' : ''}`;
+    }
+  };
+  
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'confirmed': return 'bg-blue-100 text-blue-800';
+      case 'processing': return 'bg-purple-100 text-purple-800';
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
   
@@ -314,7 +354,7 @@ function OrderPage({ unitId }: { unitId: string }) {
           
           {/* Tab Navigation */}
           <div className="flex border-b">
-            <button 
+            <button
               onClick={() => {
                 setActiveTab('menu');
                 setActiveCategory(null);
@@ -326,7 +366,7 @@ function OrderPage({ unitId }: { unitId: string }) {
                 Food & Drinks
               </span>
             </button>
-            <button 
+            <button
               onClick={() => {
                 setActiveTab('service');
                 setActiveCategory(null);
@@ -338,231 +378,294 @@ function OrderPage({ unitId }: { unitId: string }) {
                 Services
               </span>
             </button>
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`flex-1 py-4 text-center font-medium ${activeTab === 'orders' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}
+            >
+              <span className="flex items-center justify-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                Orders
+                {previousOrders.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
+                    {previousOrders.length}
+                  </span>
+                )}
+              </span>
+            </button>
           </div>
           
           {/* Content */}
           <div className="p-4">
-            {/* Category Filters */}
-            <div className="pb-4 overflow-x-auto">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setActiveCategory(null)}
-                  className={`px-3 py-1.5 whitespace-nowrap rounded-full text-sm ${!activeCategory ? 'bg-primary text-primary-foreground' : 'bg-gray-100'}`}
-                >
-                  All
-                </button>
-                
-                {activeTab === 'menu' ? (
-                  menuCategories.map(category => (
-                    <button
-                      key={category}
-                      onClick={() => setActiveCategory(category)}
-                      className={`px-3 py-1.5 whitespace-nowrap rounded-full text-sm flex items-center gap-1.5 ${activeCategory === category ? 'bg-primary text-primary-foreground' : 'bg-gray-100'}`}
-                    >
-                      {getCategoryIcon(category, 'menu')}
-                      <span>{category.charAt(0).toUpperCase() + category.slice(1)}</span>
-                    </button>
-                  ))
+            {/* Only show categories for Menu and Service tabs */}
+            {activeTab !== 'orders' && (
+              <div className="pb-4 overflow-x-auto">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setActiveCategory(null)}
+                    className={`px-3 py-1.5 whitespace-nowrap rounded-full text-sm ${!activeCategory ? 'bg-primary text-primary-foreground' : 'bg-gray-100'}`}
+                  >
+                    All
+                  </button>
+                  
+                  {activeTab === 'menu' ? (
+                    menuCategories.map(category => (
+                      <button
+                        key={category}
+                        onClick={() => setActiveCategory(category)}
+                        className={`px-3 py-1.5 whitespace-nowrap rounded-full text-sm flex items-center gap-1.5 ${activeCategory === category ? 'bg-primary text-primary-foreground' : 'bg-gray-100'}`}
+                      >
+                        {getCategoryIcon(category, 'menu')}
+                        <span>{category.charAt(0).toUpperCase() + category.slice(1)}</span>
+                      </button>
+                    ))
+                  ) : (
+                    serviceCategories.map(category => (
+                      <button
+                        key={category}
+                        onClick={() => setActiveCategory(category)}
+                        className={`px-3 py-1.5 whitespace-nowrap rounded-full text-sm flex items-center gap-1.5 ${activeCategory === category ? 'bg-primary text-primary-foreground' : 'bg-gray-100'}`}
+                      >
+                        {getCategoryIcon(category, 'service')}
+                        <span>{category.charAt(0).toUpperCase() + category.slice(1)}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Menu and Services Content - Only shown when not in Orders tab */}
+            {activeTab !== 'orders' && (
+              <div className="space-y-4">
+                {filteredItems.length === 0 ? (
+                  <div className="p-8 text-center bg-white rounded-lg border">
+                    <p className="text-gray-500">No items available in this category.</p>
+                  </div>
                 ) : (
-                  serviceCategories.map(category => (
-                    <button
-                      key={category}
-                      onClick={() => setActiveCategory(category)}
-                      className={`px-3 py-1.5 whitespace-nowrap rounded-full text-sm flex items-center gap-1.5 ${activeCategory === category ? 'bg-primary text-primary-foreground' : 'bg-gray-100'}`}
-                    >
-                      {getCategoryIcon(category, 'service')}
-                      <span>{category.charAt(0).toUpperCase() + category.slice(1)}</span>
-                    </button>
+                  filteredItems.map(item => {
+                    const cartItem = getItemInCart(activeTab, item.id);
+                    
+                    return (
+                      <div key={`${activeTab}-${item.id}`} className="bg-white rounded-lg border p-4">
+                        <div className="flex justify-between">
+                          <div>
+                            <h3 className="font-medium">{item.name}</h3>
+                            <p className="text-sm text-gray-500 mt-1">{item.description}</p>
+                            
+                            {activeTab === 'service' && (
+                              <span className="inline-block mt-2 text-xs bg-gray-100 rounded-full px-2 py-1">
+                                {formatDuration((item as Service).duration)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium">{formatPrice(item.price)}</p>
+                            
+                            {cartItem ? (
+                              <div className="flex items-center justify-end gap-2 mt-2">
+                                <button 
+                                  onClick={() => removeFromCart(activeTab, item.id)}
+                                  className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </button>
+                                <span className="w-5 text-center">{cartItem.quantity}</span>
+                                <button 
+                                  onClick={() => addToCart(activeTab, item)}
+                                  className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={() => addToCart(activeTab, item)}
+                                className="mt-2 px-3 py-1 bg-primary text-primary-foreground rounded-md text-sm"
+                              >
+                                Add
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+            
+            {/* Orders Tab Content - Only shown when in Orders tab */}
+            {activeTab === 'orders' && (
+              <div className="space-y-4">
+                {previousOrders.length === 0 ? (
+                  <div className="p-8 text-center bg-white rounded-lg border">
+                    <p className="text-gray-500">No previous orders found for this unit.</p>
+                  </div>
+                ) : (
+                  previousOrders.map(order => (
+                    <div key={order.id} className="border rounded-lg p-4 bg-white">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <div className="text-sm text-gray-500">
+                            {formatDate(order.created_at)}
+                          </div>
+                          <div className="font-medium">{formatPrice(order.total_amount)}</div>
+                        </div>
+                        <div className={`px-2 py-1 rounded-full text-xs ${getStatusColor(order.status)}`}>
+                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {order.order_items.map(item => (
+                          <div key={item.id} className="text-sm flex justify-between">
+                            <span>{item.quantity}x {item.name}</span>
+                            <span>{formatPrice(item.price * item.quantity)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {order.notes && (
+                        <div className="text-sm text-gray-500 mt-3 border-t pt-2">
+                          <span className="font-medium">Notes:</span> {order.notes}
+                        </div>
+                      )}
+                    </div>
                   ))
                 )}
               </div>
-            </div>
+            )}
             
-            {/* Items List */}
-            <div className="space-y-4">
-              {filteredItems.length === 0 ? (
-                <div className="p-8 text-center bg-white rounded-lg border">
-                  <p className="text-gray-500">No items available in this category.</p>
-                </div>
-              ) : (
-                filteredItems.map(item => {
-                  const cartItem = getItemInCart(activeTab, item.id);
+            {/* Cart Button */}
+            {cart.length > 0 && (
+              <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
+                <button 
+                  onClick={() => setIsCartOpen(true)}
+                  className="w-full py-3 bg-primary text-primary-foreground rounded-md flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2 ml-4">
+                    <ShoppingCart className="h-5 w-5" />
+                    <span>View Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)} items)</span>
+                  </span>
+                  <span className="mr-4">{formatPrice(calculateTotal())}</span>
+                </button>
+              </div>
+            )}
+            
+            {/* Cart Modal */}
+            {isCartOpen && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center">
+                <div className="bg-white rounded-t-lg sm:rounded-lg max-w-lg w-full max-h-[80vh] overflow-y-auto">
+                  <div className="p-4 border-b sticky top-0 bg-white">
+                    <div className="flex justify-between items-center">
+                      <button 
+                        onClick={() => setIsCartOpen(false)}
+                        className="p-2 -m-2 rounded-full hover:bg-gray-100"
+                      >
+                        <ArrowLeft className="h-5 w-5" />
+                      </button>
+                      <h2 className="text-lg font-bold">Your Cart</h2>
+                      <div className="w-9"></div> {/* Spacer for centering */}
+                    </div>
+                  </div>
                   
-                  return (
-                    <div key={`${activeTab}-${item.id}`} className="bg-white rounded-lg border p-4">
-                      <div className="flex justify-between">
-                        <div>
-                          <h3 className="font-medium">{item.name}</h3>
-                          <p className="text-sm text-gray-500 mt-1">{item.description}</p>
-                          
-                          {activeTab === 'service' && (
-                            <span className="inline-block mt-2 text-xs bg-gray-100 rounded-full px-2 py-1">
-                              {formatDuration((item as Service).duration)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">{formatPrice(item.price)}</p>
-                          
-                          {cartItem ? (
+                  <div className="divide-y">
+                    {cart.map((item, index) => (
+                      <div key={`${item.type}-${item.id}`} className="p-4">
+                        <div className="flex justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span>{item.quantity}x</span>
+                              <h3 className="font-medium">{item.name}</h3>
+                            </div>
+                            
+                            <textarea
+                              placeholder="Add special instructions..."
+                              value={item.notes || ''}
+                              onChange={(e) => updateCartItemNotes(item.type, item.id, e.target.value)}
+                              className="mt-2 w-full text-sm border rounded-md p-2 h-16 bg-gray-50"
+                            />
+                          </div>
+                          <div className="text-right">
+                            <p>{formatPrice(item.price * item.quantity)}</p>
                             <div className="flex items-center justify-end gap-2 mt-2">
                               <button 
-                                onClick={() => removeFromCart(activeTab, item.id)}
+                                onClick={() => removeFromCart(item.type, item.id)}
                                 className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
                               >
                                 <Minus className="h-4 w-4" />
                               </button>
-                              <span className="w-5 text-center">{cartItem.quantity}</span>
+                              <span className="w-5 text-center">{item.quantity}</span>
                               <button 
-                                onClick={() => addToCart(activeTab, item)}
+                                onClick={() => {
+                                  if (item.type === 'menu') {
+                                    const menuItem = menuItems.find(m => m.id === item.id);
+                                    if (menuItem) addToCart('menu', menuItem);
+                                  } else if (item.type === 'service') {
+                                    const service = services.find(s => s.id === item.id);
+                                    if (service) addToCart('service', service);
+                                  }
+                                }}
                                 className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
                               >
                                 <Plus className="h-4 w-4" />
                               </button>
                             </div>
-                          ) : (
-                            <button 
-                              onClick={() => addToCart(activeTab, item)}
-                              className="mt-2 px-3 py-1 bg-primary text-primary-foreground rounded-md text-sm"
-                            >
-                              Add
-                            </button>
-                          )}
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                  
+                  <div className="p-4 border-t">
+                    <div className="flex justify-between font-medium mb-2">
+                      <span>Total:</span>
+                      <span>{formatPrice(calculateTotal())}</span>
                     </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-          
-          {/* Cart Button */}
-          {cart.length > 0 && (
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-              <button 
-                onClick={() => setIsCartOpen(true)}
-                className="w-full py-3 bg-primary text-primary-foreground rounded-md flex items-center justify-between"
-              >
-                <span className="flex items-center gap-2 ml-4">
-                  <ShoppingCart className="h-5 w-5" />
-                  <span>View Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)} items)</span>
-                </span>
-                <span className="mr-4">{formatPrice(calculateTotal())}</span>
-              </button>
-            </div>
-          )}
-          
-          {/* Cart Modal */}
-          {isCartOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center">
-              <div className="bg-white rounded-t-lg sm:rounded-lg max-w-lg w-full max-h-[80vh] overflow-y-auto">
-                <div className="p-4 border-b sticky top-0 bg-white">
-                  <div className="flex justify-between items-center">
+                    
+                    <textarea
+                      placeholder="Add notes for your order..."
+                      value={orderNotes}
+                      onChange={(e) => setOrderNotes(e.target.value)}
+                      className="w-full border rounded-md p-3 h-24 mb-4 bg-gray-50"
+                    />
+                    
                     <button 
-                      onClick={() => setIsCartOpen(false)}
-                      className="p-2 -m-2 rounded-full hover:bg-gray-100"
+                      onClick={handleSubmitOrder}
+                      disabled={isSubmitting}
+                      className="w-full py-3 bg-primary text-primary-foreground rounded-md flex items-center justify-center gap-2"
                     >
-                      <ArrowLeft className="h-5 w-5" />
+                      {isSubmitting ? (
+                        <>
+                          <div className="animate-spin">
+                            <QrCode className="h-5 w-5" />
+                          </div>
+                          <span>Processing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-5 w-5" />
+                          <span>Submit Order</span>
+                        </>
+                      )}
                     </button>
-                    <h2 className="text-lg font-bold">Your Cart</h2>
-                    <div className="w-9"></div> {/* Spacer for centering */}
-                  </div>
-                </div>
-                
-                <div className="divide-y">
-                  {cart.map((item, index) => (
-                    <div key={`${item.type}-${item.id}`} className="p-4">
-                      <div className="flex justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span>{item.quantity}x</span>
-                            <h3 className="font-medium">{item.name}</h3>
-                          </div>
-                          
-                          <textarea
-                            placeholder="Add special instructions..."
-                            value={item.notes || ''}
-                            onChange={(e) => updateCartItemNotes(item.type, item.id, e.target.value)}
-                            className="mt-2 w-full text-sm border rounded-md p-2 h-16 bg-gray-50"
-                          />
-                        </div>
-                        <div className="text-right">
-                          <p>{formatPrice(item.price * item.quantity)}</p>
-                          <div className="flex items-center justify-end gap-2 mt-2">
-                            <button 
-                              onClick={() => removeFromCart(item.type, item.id)}
-                              className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
-                            >
-                              <Minus className="h-4 w-4" />
-                            </button>
-                            <span className="w-5 text-center">{item.quantity}</span>
-                            <button 
-                              onClick={() => addToCart(item.type, {
-                                id: item.id,
-                                name: item.name,
-                                price: item.price
-                              } as MenuItem | Service)}
-                              className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
-                            >
-                              <Plus className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                    
+                    <div className="mt-4 p-3 bg-primary/10 rounded-md flex gap-2">
+                      <Info className="h-5 w-5 text-primary flex-shrink-0" />
+                      <p className="text-xs">
+                        Your order will be delivered to Unit {unit.unit_number} in {building?.name}. 
+                        You will be charged when the service is delivered.
+                      </p>
                     </div>
-                  ))}
-                </div>
-                
-                <div className="p-4 border-t">
-                  <div className="flex justify-between font-medium mb-2">
-                    <span>Total:</span>
-                    <span>{formatPrice(calculateTotal())}</span>
-                  </div>
-                  
-                  <textarea
-                    placeholder="Add notes for your order..."
-                    value={orderNotes}
-                    onChange={(e) => setOrderNotes(e.target.value)}
-                    className="w-full border rounded-md p-3 h-24 mb-4 bg-gray-50"
-                  />
-                  
-                  <button 
-                    onClick={handleSubmitOrder}
-                    disabled={isSubmitting}
-                    className="w-full py-3 bg-primary text-primary-foreground rounded-md flex items-center justify-center gap-2"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="animate-spin">
-                          <QrCode className="h-5 w-5" />
-                        </div>
-                        <span>Processing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="h-5 w-5" />
-                        <span>Submit Order</span>
-                      </>
-                    )}
-                  </button>
-                  
-                  <div className="mt-4 p-3 bg-primary/10 rounded-md flex gap-2">
-                    <Info className="h-5 w-5 text-primary flex-shrink-0" />
-                    <p className="text-xs">
-                      Your order will be delivered to Unit {unit.unit_number} in {building?.name}. 
-                      You will be charged when the service is delivered.
-                    </p>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// Change the default export to the wrapper component
 export default OrderPageWrapper; 

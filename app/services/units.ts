@@ -8,13 +8,50 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function getUnits(buildingId?: string): Promise<Unit[]> {
   try {
+    // Get the current authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError) {
+      console.error('Auth error:', userError);
+      throw new Error(`Failed to get current user: ${userError.message}`);
+    }
+    
+    if (!user) {
+      console.warn('No authenticated user found');
+      return [];
+    }
+    
+    // First, get the list of buildings owned by this user
+    const { data: userBuildings, error: buildingsError } = await supabase
+      .from('buildings')
+      .select('id')
+      .eq('user_id', user.id);
+      
+    if (buildingsError) {
+      console.error('Supabase error fetching buildings:', buildingsError);
+      throw new Error(`Failed to fetch user buildings: ${buildingsError.message}`);
+    }
+    
+    const userBuildingIds = userBuildings?.map(b => b.id) || [];
+    
+    if (userBuildingIds.length === 0) {
+      return [];
+    }
+
     let query = supabase
       .from('units')
       .select('*')
+      .in('building_id', userBuildingIds)
       .order('unit_number');
     
     if (buildingId) {
-      query = query.eq('building_id', buildingId);
+      // If a specific building is requested, verify it belongs to the user
+      if (userBuildingIds.includes(buildingId)) {
+        query = query.eq('building_id', buildingId);
+      } else {
+        console.warn(`Building ${buildingId} does not belong to user ${user.id}`);
+        return [];
+      }
     }
     
     const { data, error } = await query;
@@ -35,8 +72,41 @@ export async function getUnits(buildingId?: string): Promise<Unit[]> {
   }
 }
 
-export async function getUnit(id: string): Promise<Unit> {
+export async function getUnit(id: string, guestMode: boolean = false): Promise<Unit> {
   try {
+    // Guest mode - skip authentication checks for order page (QR code access)
+    if (guestMode) {
+      const { data, error } = await supabase
+        .from('units')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      return data;
+    }
+    
+    // Admin mode - require authentication and verify ownership
+    // Get the current authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('You must be logged in to view unit details');
+    }
+    
+    // Get the user's buildings
+    const { data: userBuildings } = await supabase
+      .from('buildings')
+      .select('id')
+      .eq('user_id', user.id);
+      
+    const userBuildingIds = userBuildings?.map(b => b.id) || [];
+    
+    // Get the unit and verify it belongs to one of the user's buildings
     const { data, error } = await supabase
       .from('units')
       .select('*')
@@ -46,6 +116,11 @@ export async function getUnit(id: string): Promise<Unit> {
     if (error) {
       console.error('Supabase error:', error);
       throw error;
+    }
+    
+    // Check if this unit belongs to one of the user's buildings
+    if (!userBuildingIds.includes(data.building_id)) {
+      throw new Error('You do not have permission to access this unit');
     }
 
     return data;
@@ -57,6 +132,25 @@ export async function getUnit(id: string): Promise<Unit> {
 
 export async function createUnit(unit: CreateUnitInput): Promise<Unit> {
   try {
+    // Get the current authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('You must be logged in to create a unit');
+    }
+    
+    // Check if the building belongs to the user
+    const { data: buildingData, error: buildingError } = await supabase
+      .from('buildings')
+      .select('id')
+      .eq('id', unit.building_id)
+      .eq('user_id', user.id)
+      .single();
+      
+    if (buildingError || !buildingData) {
+      throw new Error('You do not have permission to add units to this building');
+    }
+    
     console.log('[Unit Debug] Creating new unit:', unit);
     // First create the unit without QR code
     const { data, error } = await supabase
@@ -113,6 +207,34 @@ export async function createUnit(unit: CreateUnitInput): Promise<Unit> {
 
 export async function updateUnit(unit: UpdateUnitInput): Promise<Unit> {
   try {
+    // Get the current authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('You must be logged in to update a unit');
+    }
+    
+    // Get the unit's building_id first
+    const { data: existingUnit } = await supabase
+      .from('units')
+      .select('building_id')
+      .eq('id', unit.id)
+      .single();
+      
+    if (existingUnit) {
+      // Check if the building belongs to the user
+      const { data: buildingCheck } = await supabase
+        .from('buildings')
+        .select('id')
+        .eq('id', existingUnit.building_id)
+        .eq('user_id', user.id)
+        .single();
+        
+      if (!buildingCheck) {
+        throw new Error('You do not have permission to update this unit');
+      }
+    }
+    
     const { data, error } = await supabase
       .from('units')
       .update(unit)
@@ -134,6 +256,34 @@ export async function updateUnit(unit: UpdateUnitInput): Promise<Unit> {
 
 export async function deleteUnit(id: string): Promise<void> {
   try {
+    // Get the current authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('You must be logged in to delete a unit');
+    }
+    
+    // Get the unit's building_id first
+    const { data: existingUnit } = await supabase
+      .from('units')
+      .select('building_id')
+      .eq('id', id)
+      .single();
+      
+    if (existingUnit) {
+      // Check if the building belongs to the user
+      const { data: buildingCheck } = await supabase
+        .from('buildings')
+        .select('id')
+        .eq('id', existingUnit.building_id)
+        .eq('user_id', user.id)
+        .single();
+        
+      if (!buildingCheck) {
+        throw new Error('You do not have permission to delete this unit');
+      }
+    }
+    
     const { error } = await supabase
       .from('units')
       .delete()
