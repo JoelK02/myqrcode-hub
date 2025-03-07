@@ -16,53 +16,243 @@ import {
   ArrowUpDown,
   RefreshCw,
   Copy,
-  Check
+  Check,
+  User,
+  CalendarIcon,
+  CheckSquare,
+  ListChecks,
+  Bell
 } from 'lucide-react';
 import { getOrders, updateOrderStatus } from '../../services/order';
 import { getBuildings } from '../../services/buildings';
+import { getAdmins, completeOrder, getOrderCompletion, getCompletedOrdersByUser } from '../../services/admin';
 import { Order, OrderItem } from '../../types/order';
 import { Building } from '../../types/buildings';
+import { Admin, OrderCompletion } from '../../services/admin';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '../../hooks/useAuth';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function OrdersPage() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const [admins, setAdmins] = useState<Admin[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [orderCompletion, setOrderCompletion] = useState<OrderCompletion | null>(null);
+  const [loadingCompletion, setLoadingCompletion] = useState(false);
+  const [completedOrders, setCompletedOrders] = useState<OrderCompletion[]>([]);
+  const [isLoadingCompletedOrders, setIsLoadingCompletedOrders] = useState(true);
   
-  // Filter states
-  const [buildingFilter, setBuildingFilter] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [dateFilter, setDateFilter] = useState<string>('');
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  
-  // Pagination/sorting
+  // Remove notification-related state and refs
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<'created_at' | 'status'>('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-
-  // Add a refresh state
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
+  const [statusFilter, setStatusFilter] = useState<Order['status'] | 'all'>('all');
+  const [buildingFilter, setBuildingFilter] = useState<string>('all');
+  const [isCompletingOrder, setIsCompletingOrder] = useState(false);
+  const [completeNote, setCompleteNote] = useState('');
+  const [completeAdminId, setCompleteAdminId] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
+  const [autoRefreshIndicator, setAutoRefreshIndicator] = useState<string | null>(null);
+  
+  // Array to store subscription objects
+  const subscriptions: any[] = [];
+  
+  // Add a state to track if subscriptions are already set up
+  const [subscriptionsActive, setSubscriptionsActive] = useState(false);
+  
+  // Initial data loading
   useEffect(() => {
     fetchData();
+    fetchCompletedOrders();
+    
+    // Clean up subscriptions on unmount
+    return () => {
+      subscriptions.forEach(subscription => subscription.unsubscribe());
+    };
   }, []);
+  
+  // Set up real-time subscriptions after initial data load
+  useEffect(() => {
+    if (buildings.length > 0 && !subscriptionsActive) {
+      setupRealTimeSubscriptions();
+      setSubscriptionsActive(true);
+    }
+  }, [buildings, admins, subscriptionsActive]);
+  
+  // Setup real-time subscriptions for orders and order completions
+  const setupRealTimeSubscriptions = () => {
+    // Clean up any existing subscriptions
+    subscriptions.forEach(subscription => subscription.unsubscribe());
+    const newSubscriptions = [];
+    
+    // Only proceed if there are buildings
+    if (buildings.length === 0) {
+      return;
+    }
+    
+    // Get all building IDs that belong to this user
+    const buildingIds = buildings.map(building => building.id);
+    
+    if (buildingIds.length === 0) {
+      console.log('No buildings to subscribe to');
+      return;
+    }
+    
+    console.log('Setting up real-time subscriptions for buildings:', buildingIds);
+    
+    // 1. Listen for new orders (INSERT events)
+    const newOrdersSubscription = supabase
+      .channel('new-orders')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+          filter: `building_id=in.(${buildingIds.join(',')})`,
+        },
+        (payload) => {
+          console.log('New order received in orders page:', payload);
+          
+          // Just refresh data, no notifications (handled by TopNav)
+          fetchData(true);
+        }
+      )
+      .subscribe();
+    
+    newSubscriptions.push(newOrdersSubscription);
+    
+    // 2. Listen for updated orders (UPDATE events)
+    const updatedOrdersSubscription = supabase
+      .channel('updated-orders')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `building_id=in.(${buildingIds.join(',')})`,
+        },
+        (payload) => {
+          console.log('Order updated:', payload);
+          // Refresh orders data without special notification
+          fetchData(true);
+        }
+      )
+      .subscribe();
+    
+    newSubscriptions.push(updatedOrdersSubscription);
+    
+    // 3. Listen for deleted orders (DELETE events) - less common but good to handle
+    const deletedOrdersSubscription = supabase
+      .channel('deleted-orders')
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'orders',
+          filter: `building_id=in.(${buildingIds.join(',')})`,
+        },
+        (payload) => {
+          console.log('Order deleted:', payload);
+          fetchData(true);
+        }
+      )
+      .subscribe();
+    
+    newSubscriptions.push(deletedOrdersSubscription);
+    
+    // 4. Listen for order completion events - we only want completions for our buildings
+    // Since we can't directly filter order_completions by building_id (it's in the orders table),
+    // we'll get all completions and then filter them in the fetchCompletedOrders function
+    const orderCompletionSubscription = supabase
+      .channel('order-completions')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'order_completions',
+        },
+        (payload) => {
+          console.log('Order completion:', payload);
+          fetchCompletedOrders(true);
+        }
+      )
+      .subscribe();
+    
+    newSubscriptions.push(orderCompletionSubscription);
+    
+    // Store subscriptions in the component
+    subscriptions.push(...newSubscriptions);
+  };
 
-  const fetchData = async () => {
+  const fetchData = async (isAutoRefresh = false) => {
     try {
-      setIsLoading(true);
-      const [ordersData, buildingsData] = await Promise.all([
+      if (!isAutoRefresh) {
+        setIsLoading(true);
+      }
+      
+      const [ordersData, buildingsData, adminsData] = await Promise.all([
         getOrders(),
-        getBuildings()
+        getBuildings(),
+        getAdmins()
       ]);
       
       setOrders(ordersData);
       setBuildings(buildingsData);
-    } catch (error) {
-      console.error('Error fetching data:', error);
+      setAdmins(adminsData);
+      
+      // Set default admin if available
+      if (adminsData.length > 0) {
+        setCompleteAdminId(adminsData[0].id);
+      }
+    } catch (err) {
+      console.error('Error fetching orders:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  const fetchOrderCompletion = async (orderId: string) => {
+    try {
+      setLoadingCompletion(true);
+      const completion = await getOrderCompletion(orderId);
+      setOrderCompletion(completion);
+    } catch (error) {
+      console.error('Error fetching order completion:', error);
+    } finally {
+      setLoadingCompletion(false);
+    }
+  };
+
+  const fetchCompletedOrders = async (isAutoRefresh = false) => {
+    try {
+      if (!isAutoRefresh) {
+        setIsLoadingCompletedOrders(true);
+      } else {
+        // Show auto-refresh indicator for completed orders
+        setAutoRefreshIndicator('completions');
+        // Hide it after 2 seconds
+        setTimeout(() => setAutoRefreshIndicator(null), 2000);
+      }
+      const completedOrdersData = await getCompletedOrdersByUser();
+      setCompletedOrders(completedOrdersData);
+    } catch (error) {
+      console.error('Error fetching completed orders:', error);
+    } finally {
+      setIsLoadingCompletedOrders(false);
     }
   };
 
@@ -80,10 +270,57 @@ export default function OrdersPage() {
       
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
+        
+        // If status changed to completed, fetch completion details
+        if (newStatus === 'completed') {
+          fetchOrderCompletion(orderId);
+        } else {
+          setOrderCompletion(null);
+        }
       }
     } catch (error) {
       console.error('Error updating order status:', error);
       alert('Failed to update order status');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+  
+  const handleOpenCompleteModal = () => {
+    if (!selectedOrder) return;
+    
+    setIsModalOpen(true);
+    // Reset completion form values
+    setCompleteNote('');
+    
+    // Set default admin if available
+    if (admins.length > 0 && !completeAdminId) {
+      setCompleteAdminId(admins[0].id);
+    }
+  };
+  
+  const handleCompleteOrder = async () => {
+    if (!selectedOrder || !completeAdminId) return;
+    
+    try {
+      setIsUpdating(true);
+      
+      const completionData = await completeOrder({
+        order_id: selectedOrder.id,
+        admin_id: completeAdminId,
+        completed_at: new Date().toISOString(),
+        notes: completeNote
+      });
+      
+      // Update local state
+      handleUpdateStatus(selectedOrder.id, 'completed');
+      setOrderCompletion(completionData);
+      
+      // Close the modal
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error completing order:', error);
+      alert('Failed to complete order');
     } finally {
       setIsUpdating(false);
     }
@@ -143,63 +380,66 @@ export default function OrdersPage() {
     const building = buildings.find(b => b.id === buildingId);
     return building ? building.name : 'Unknown Building';
   };
+  
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+  };
 
-  const filteredOrders = orders
+  const processedOrders = orders
     .filter(order => 
-      (buildingFilter ? order.building_id === buildingFilter : true) &&
-      (statusFilter ? order.status === statusFilter : true) &&
-      (dateFilter ? new Date(order.created_at).toDateString() === new Date(dateFilter).toDateString() : true) &&
-      (searchTerm 
-        ? order.unit_number.toLowerCase().includes(searchTerm.toLowerCase()) || 
-          (order.building_name && order.building_name.toLowerCase().includes(searchTerm.toLowerCase()))
-        : true)
+      (buildingFilter === 'all' || order.building_id === buildingFilter) &&
+      (statusFilter === 'all' || order.status === statusFilter) &&
+      (searchQuery ? order.unit_number?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        (order.building_name && order.building_name.toLowerCase().includes(searchQuery.toLowerCase())) : true)
     )
     .sort((a, b) => {
       if (sortField === 'created_at') {
-        return sortDirection === 'asc' 
-          ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return sortDirection === 'desc'
+          ? new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          : new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       } else {
-        // For status sorting
-        const statusOrder = ['pending', 'confirmed', 'processing', 'completed', 'cancelled'];
-        const aValue = statusOrder.indexOf(a.status);
-        const bValue = statusOrder.indexOf(b.status);
-        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+        // Sort by status
+        const statusOrder = { pending: 1, confirmed: 2, in_progress: 3, completed: 4, cancelled: 5 };
+        const statusA = a.status && statusOrder[a.status] ? statusOrder[a.status] : 999;
+        const statusB = b.status && statusOrder[b.status] ? statusOrder[b.status] : 999;
+        
+        return sortDirection === 'desc'
+          ? statusB - statusA
+          : statusA - statusB;
       }
     });
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await fetchData();
-    setIsRefreshing(false);
-  };
-
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
   return (
     <div className="space-y-6">
-      <header className="flex justify-between items-center">
+      {/* Orders Header */}
+      <div className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Orders & Requests</h1>
+          <h1 className="text-3xl font-bold mb-2">
+            Orders & Requests
+          </h1>
           <p className="text-muted-foreground">Track and manage customer orders and service requests.</p>
         </div>
-        <button 
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-colors disabled:opacity-50"
-        >
-          {isRefreshing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
+        
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => {
+              fetchData(false);
+              fetchCompletedOrders(false);
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-md transition-colors bg-primary/10 hover:bg-primary/20 text-primary"
+          >
             <RefreshCw className="h-4 w-4" />
-          )}
-          Refresh
-        </button>
-      </header>
+            Refresh
+          </button>
+        </div>
+      </div>
       
       {/* Filters */}
       <div className="bg-card rounded-lg border p-4">
@@ -218,7 +458,7 @@ export default function OrdersPage() {
                 value={buildingFilter}
                 onChange={(e) => setBuildingFilter(e.target.value)}
               >
-                <option value="">All Buildings</option>
+                <option value="all">All Buildings</option>
                 {buildings.map(building => (
                   <option key={building.id} value={building.id}>
                     {building.name}
@@ -233,9 +473,9 @@ export default function OrdersPage() {
               <select 
                 className="w-full px-3 py-2 border rounded-md"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => setStatusFilter(e.target.value as Order['status'])}
               >
-                <option value="">All Statuses</option>
+                <option value="all">All Statuses</option>
                 <option value="pending">Pending</option>
                 <option value="confirmed">Confirmed</option>
                 <option value="processing">Processing</option>
@@ -244,29 +484,18 @@ export default function OrdersPage() {
               </select>
             </div>
             
-            {/* Date filter */}
-            <div className="flex-1">
-              <label className="text-sm mb-1 block">Date</label>
-              <input 
-                type="date" 
-                className="w-full px-3 py-2 border rounded-md"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-              />
-            </div>
-            
             {/* Search */}
             <div className="flex-1">
               <label className="text-sm mb-1 block">Search</label>
               <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input 
                   type="text" 
-                  placeholder="Search unit number..."
-                  className="w-full px-3 py-2 pl-9 border rounded-md"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Order ID, unit..."
+                  className="w-full pl-9 pr-3 py-2 border rounded-md"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
-                <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               </div>
             </div>
           </div>
@@ -281,7 +510,7 @@ export default function OrdersPage() {
               <h3 className="font-medium flex items-center justify-between">
                 Orders
                 <span className="text-sm bg-primary/10 px-2 py-1 rounded text-primary">
-                  {filteredOrders.length} found
+                  {processedOrders.length} found
                 </span>
               </h3>
             </div>
@@ -292,7 +521,7 @@ export default function OrdersPage() {
               </div>
             ) : (
               <>
-                {filteredOrders.length === 0 ? (
+                {processedOrders.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
                     No orders found matching your filters
                   </div>
@@ -329,7 +558,7 @@ export default function OrdersPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredOrders.map(order => (
+                        {processedOrders.map(order => (
                           <tr 
                             key={order.id}
                             className={`border-b hover:bg-muted/20 cursor-pointer transition-colors ${selectedOrder?.id === order.id ? 'bg-primary/5' : ''}`}
@@ -371,17 +600,30 @@ export default function OrdersPage() {
                       Updating...
                     </span>
                   ) : (
-                    <select
-                      className={`text-xs px-2 py-1 rounded-full ${getStatusColorClass(selectedOrder.status)}`}
-                      value={selectedOrder.status}
-                      onChange={(e) => handleUpdateStatus(selectedOrder.id, e.target.value as Order['status'])}
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="confirmed">Confirmed</option>
-                      <option value="processing">Processing</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
+                    <>
+                      {/* Complete order button - only show for non-completed/cancelled orders */}
+                      {selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled' && (
+                        <button
+                          onClick={handleOpenCompleteModal}
+                          className="text-xs px-3 py-1 bg-green-600 text-white rounded-md flex items-center gap-1"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Complete Order
+                        </button>
+                      )}
+                      
+                      <select
+                        className={`text-xs px-2 py-1 rounded-full ${getStatusColorClass(selectedOrder.status)}`}
+                        value={selectedOrder.status}
+                        onChange={(e) => handleUpdateStatus(selectedOrder.id, e.target.value as Order['status'])}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="processing">Processing</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </>
                   )}
                 </div>
               </div>
@@ -395,7 +637,11 @@ export default function OrdersPage() {
                       <div className="col-span-2 flex items-center gap-2">
                         <span className="font-mono truncate">{selectedOrder.id}</span>
                         <button 
-                          onClick={() => copyToClipboard(selectedOrder.id, 'orderId')}
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedOrder.id);
+                            setCopiedId('orderId');
+                            setTimeout(() => setCopiedId(null), 2000);
+                          }}
                           className="text-muted-foreground hover:text-primary transition-colors"
                         >
                           {copiedId === 'orderId' ? (
@@ -444,7 +690,11 @@ export default function OrdersPage() {
                       <div className="col-span-2 flex items-center gap-2">
                         <span className="font-mono truncate">{selectedOrder.unit_id}</span>
                         <button 
-                          onClick={() => copyToClipboard(selectedOrder.unit_id, 'unitId')}
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedOrder.unit_id);
+                            setCopiedId('unitId');
+                            setTimeout(() => setCopiedId(null), 2000);
+                          }}
                           className="text-muted-foreground hover:text-primary transition-colors"
                         >
                           {copiedId === 'unitId' ? (
@@ -459,10 +709,57 @@ export default function OrdersPage() {
                 </div>
               </div>
               
+              {/* Order Completion Section - Only show for completed orders */}
+              {selectedOrder.status === 'completed' && (
+                <div className="px-6 pb-4">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Completion Details</h4>
+                  
+                  {loadingCompletion ? (
+                    <div className="flex justify-center p-4 bg-muted/20 rounded-md">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    </div>
+                  ) : orderCompletion ? (
+                    <div className="bg-green-50 border border-green-100 rounded-md overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-green-100/50">
+                          <tr>
+                            <th className="text-left text-xs font-medium text-green-800 uppercase p-3">Admin</th>
+                            <th className="text-left text-xs font-medium text-green-800 uppercase p-3">Completed At</th>
+                            <th className="text-left text-xs font-medium text-green-800 uppercase p-3">Role</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="p-3 text-sm font-medium">{orderCompletion.admin?.name || 'Unknown'}</td>
+                            <td className="p-3 text-sm">{formatDateTime(orderCompletion.completed_at)}</td>
+                            <td className="p-3 text-sm">
+                              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                                {orderCompletion.admin?.role || 'N/A'}
+                              </span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      
+                      {orderCompletion.notes && (
+                        <div className="p-3 border-t border-green-100 bg-green-50">
+                          <span className="block text-xs font-medium text-green-800 mb-1">Completion Notes:</span>
+                          <p className="text-sm text-green-700">{orderCompletion.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-3 text-sm bg-muted/20 rounded-md text-muted-foreground">
+                      No completion details found for this order.
+                    </div>
+                  )}
+                </div>
+              )}
+              
               {/* Order Notes */}
               {selectedOrder.notes && (
                 <div className="px-6 pb-4">
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Notes</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Order Notes</h4>
                   <div className="bg-muted/20 p-3 rounded-md text-sm">
                     {selectedOrder.notes}
                   </div>
@@ -519,6 +816,188 @@ export default function OrdersPage() {
           )}
         </div>
       </div>
+      
+      {/* Completed Orders by Admin Table */}
+      <div className="mt-8">
+        <div className="mb-4 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold flex items-center gap-2 mb-2">
+              <CheckSquare className="h-6 w-6 text-green-500" />
+              Completed Orders by Admin
+            </h2>
+            <p className="text-muted-foreground">
+              View all orders completed by admins associated with your account.
+            </p>
+          </div>
+          {autoRefreshIndicator === 'completions' && (
+            <span className="text-sm text-green-600 animate-pulse flex items-center">
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Auto-refreshed
+            </span>
+          )}
+        </div>
+
+        <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+          {isLoadingCompletedOrders ? (
+            <div className="flex justify-center items-center p-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : completedOrders.length === 0 ? (
+            <div className="p-12 text-center">
+              <ListChecks className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">No completed orders found</h3>
+              <p className="text-muted-foreground mb-4">
+                Completed orders will appear here when your admins complete them.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Order ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Building / Unit
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Completed By
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Completed Date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Total Amount
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Notes
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {completedOrders.map((completion) => (
+                    <tr key={completion.id} className="bg-card hover:bg-muted/50 transition-colors">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">
+                            {completion.order?.id.slice(0, 8)}...
+                          </span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(completion.order_id);
+                              setCopiedId(completion.order_id);
+                              setTimeout(() => setCopiedId(null), 2000);
+                            }}
+                            className="text-muted-foreground hover:text-foreground"
+                            title="Copy order ID"
+                          >
+                            {copiedId === completion.order_id ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        {completion.order?.building_name || 'Unknown Building'} / {completion.order?.unit_number || 'Unknown Unit'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span>{completion.admin?.name || 'Unknown Admin'}</span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            {completion.admin?.role || 'staff'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        {new Date(completion.completed_at).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                        ${completion.order?.total_amount.toFixed(2) || '0.00'}
+                      </td>
+                      <td className="px-4 py-4 text-sm max-w-xs truncate">
+                        {completion.notes || 'No notes'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Complete Order Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold">Complete Order</h2>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="p-1 rounded-full hover:bg-gray-100"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Admin Selection */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Select Admin</label>
+                <div className="relative">
+                  <select
+                    value={completeAdminId}
+                    onChange={(e) => setCompleteAdminId(e.target.value)}
+                    className="w-full border rounded-md py-2 pl-9 pr-3"
+                  >
+                    {admins.map(admin => (
+                      <option key={admin.id} value={admin.id}>
+                        {admin.name} ({admin.role})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-4 w-4 text-gray-400" />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Notes</label>
+                <textarea
+                  placeholder="Add completion notes..."
+                  value={completeNote}
+                  onChange={(e) => setCompleteNote(e.target.value)}
+                  className="w-full border rounded-md p-3 h-24 bg-gray-50"
+                />
+              </div>
+              
+              <button 
+                onClick={handleCompleteOrder}
+                disabled={isUpdating || !completeAdminId}
+                className="w-full py-3 bg-green-600 text-white rounded-md flex items-center justify-center gap-2 mt-2"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-5 w-5" />
+                    <span>Mark as Completed</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

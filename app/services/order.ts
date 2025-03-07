@@ -11,12 +11,45 @@ export async function getOrders(filters?: {
   status?: string;
 }): Promise<Order[]> {
   try {
+    // Get the current authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError) {
+      console.error('Auth error:', userError);
+      throw new Error(`Failed to get current user: ${userError.message}`);
+    }
+    
+    if (!user) {
+      console.warn('No authenticated user found');
+      return [];
+    }
+
+    // Get buildings that belong to the current user
+    const { data: userBuildings, error: buildingsError } = await supabase
+      .from('buildings')
+      .select('id')
+      .eq('user_id', user.id);
+    
+    if (buildingsError) {
+      console.error('Error fetching user buildings:', buildingsError);
+      throw new Error(`Failed to fetch user buildings: ${buildingsError.message}`);
+    }
+    
+    // Extract building IDs
+    const buildingIds = userBuildings.map(building => building.id);
+    
+    if (buildingIds.length === 0) {
+      console.log('User has no buildings');
+      return [];
+    }
+    
     let query = supabase
       .from('orders')
       .select(`
         *,
         order_items:order_items(*)
       `)
+      .in('building_id', buildingIds)
       .order('created_at', { ascending: false });
     
     if (filters) {

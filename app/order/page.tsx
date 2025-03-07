@@ -447,44 +447,60 @@ function OrderPage({ unitId }: { unitId: string }) {
                     
                     return (
                       <div key={`${activeTab}-${item.id}`} className="bg-white rounded-lg border p-4">
-                        <div className="flex justify-between">
-                          <div>
-                            <h3 className="font-medium">{item.name}</h3>
-                            <p className="text-sm text-gray-500 mt-1">{item.description}</p>
-                            
-                            {activeTab === 'service' && (
-                              <span className="inline-block mt-2 text-xs bg-gray-100 rounded-full px-2 py-1">
-                                {formatDuration((item as Service).duration)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium">{formatPrice(item.price)}</p>
-                            
-                            {cartItem ? (
-                              <div className="flex items-center justify-end gap-2 mt-2">
-                                <button 
-                                  onClick={() => removeFromCart(activeTab, item.id)}
-                                  className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
-                                >
-                                  <Minus className="h-4 w-4" />
-                                </button>
-                                <span className="w-5 text-center">{cartItem.quantity}</span>
+                        <div className="flex flex-col">
+                          {/* Image display for menu items */}
+                          {activeTab === 'menu' && item.image_url && (
+                            <div className="mb-3 rounded-md overflow-hidden aspect-video bg-gray-100">
+                              <img 
+                                src={item.image_url} 
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = '/placeholder-food.png';
+                                }}
+                              />
+                            </div>
+                          )}
+                          
+                          <div className="flex justify-between">
+                            <div>
+                              <h3 className="font-medium">{item.name}</h3>
+                              <p className="text-sm text-gray-500 mt-1">{item.description}</p>
+                              
+                              {activeTab === 'service' && (
+                                <span className="inline-block mt-2 text-xs bg-gray-100 rounded-full px-2 py-1">
+                                  {formatDuration((item as Service).duration)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="font-medium">{formatPrice(item.price)}</p>
+                              
+                              {cartItem ? (
+                                <div className="flex items-center justify-end gap-2 mt-2">
+                                  <button 
+                                    onClick={() => removeFromCart(activeTab, item.id)}
+                                    className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </button>
+                                  <span className="w-5 text-center">{cartItem.quantity}</span>
+                                  <button 
+                                    onClick={() => addToCart(activeTab, item)}
+                                    className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              ) : (
                                 <button 
                                   onClick={() => addToCart(activeTab, item)}
-                                  className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100"
+                                  className="mt-2 px-3 py-1 bg-primary text-primary-foreground rounded-md text-sm"
                                 >
-                                  <Plus className="h-4 w-4" />
+                                  Add
                                 </button>
-                              </div>
-                            ) : (
-                              <button 
-                                onClick={() => addToCart(activeTab, item)}
-                                className="mt-2 px-3 py-1 bg-primary text-primary-foreground rounded-md text-sm"
-                              >
-                                Add
-                              </button>
-                            )}
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>

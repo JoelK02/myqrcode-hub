@@ -94,7 +94,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
       
-      router.push('/auth/login');
+      // Clear user state immediately
+      setUser(null);
+      
+      // Force a cache refresh to ensure all protected routes are inaccessible
+      router.refresh();
+      
+      // Redirect to login page
+      window.location.href = '/auth/login';
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;

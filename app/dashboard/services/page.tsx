@@ -4,12 +4,12 @@ import React, { useEffect, useState } from 'react';
 import { MenuItem } from '../../types/menu';
 import { Service } from '../../types/service';
 import { Building } from '../../types/buildings';
-import { getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem } from '../../services/menu';
+import { getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, ensureImageStorageBucket } from '../../services/menu';
 import { getServices, createService, updateService, deleteService } from '../../services/service';
 import { getBuildings } from '../../services/buildings';
 import { MenuItemDialog } from '../../components/menu/MenuItemDialog';
 import { ServiceDialog } from '../../components/service/ServiceDialog';
-import { UtensilsCrossed, Plus, Pencil, Trash2, Coffee, Pizza, Cake, Star, Clock, Bed, Bath, Briefcase, Wrench, BookPlus, Building2, FilterX } from 'lucide-react';
+import { UtensilsCrossed, Plus, Pencil, Trash2, Coffee, Pizza, Cake, Star, Clock, Bed, Bath, Briefcase, Wrench, BookPlus, Building2, FilterX, ImageIcon } from 'lucide-react';
 
 
 export default function ServicesPage() {
@@ -35,6 +35,15 @@ export default function ServicesPage() {
     const fetchData = async () => {
       try {
         setIsLoading(true);
+        
+        // Try to ensure the images storage bucket exists
+        try {
+          await ensureImageStorageBucket();
+        } catch (bucketError) {
+          console.warn('Could not set up image storage bucket, but continuing:', bucketError);
+          // Don't return - continue loading other data
+        }
+        
         const [menuData, servicesData, buildingsData] = await Promise.all([
           getMenuItems(),
           getServices(),
@@ -432,18 +441,28 @@ export default function ServicesPage() {
                   <div className="text-lg font-semibold">{formatPrice(item.price)}</div>
                 </div>
 
-                {item.description && (
-                  <p className="text-muted-foreground mb-4 line-clamp-2">{item.description}</p>
-                )}
-
-                {item.image_url && (
-                  <div className="mb-4 aspect-video rounded-md overflow-hidden bg-muted">
+                {/* Item image with placeholder */}
+                <div className="mb-4 aspect-video rounded-md overflow-hidden bg-muted/50 flex items-center justify-center">
+                  {item.image_url ? (
                     <img 
                       src={item.image_url} 
                       alt={item.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // Replace broken images with placeholder
+                        (e.target as HTMLImageElement).src = '/placeholder-food.png';
+                      }}
                     />
-                  </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <ImageIcon className="h-8 w-8 mb-1" />
+                      <span className="text-xs">No image</span>
+                    </div>
+                  )}
+                </div>
+
+                {item.description && (
+                  <p className="text-muted-foreground mb-4 line-clamp-2">{item.description}</p>
                 )}
 
                 {item.building_id && (

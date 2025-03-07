@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { MenuItem, CreateMenuItemInput, UpdateMenuItemInput } from '../../types/menu';
 import { createClient } from '@supabase/supabase-js';
+import { Image as ImageIcon, UploadCloud, X, Loader2 } from 'lucide-react';
+import { validateImage, uploadImage } from '../../lib/imageUtils';
 
 // Setup Supabase client for building data
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -44,6 +46,10 @@ export function MenuItemDialog({
   const [isLoading, setIsLoading] = React.useState(false);
   const [buildings, setBuildings] = useState<BuildingOption[]>([]);
   const [buildingsLoading, setBuildingsLoading] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Fetch buildings list
   useEffect(() => {
@@ -81,6 +87,11 @@ export function MenuItemDialog({
         is_available: menuItem.is_available,
         building_id: menuItem.building_id
       });
+      
+      // Set image preview if we have an image_url
+      if (menuItem.image_url) {
+        setImagePreview(menuItem.image_url);
+      }
     } else {
       // If creating a new item, use default values and defaultBuildingId if provided
       setFormData({
@@ -92,17 +103,75 @@ export function MenuItemDialog({
         is_available: true,
         building_id: defaultBuildingId || undefined
       });
+      
+      // Reset image states
+      setImageFile(null);
+      setImagePreview(null);
     }
   }, [menuItem, isOpen, defaultBuildingId]);
+
+  // Handle image file selection
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate image file
+    const validation = validateImage(file);
+    if (!validation.valid) {
+      alert(validation.error);
+      return;
+    }
+    
+    setImageFile(file);
+    
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+  };
+  
+  // Remove selected image
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setFormData({ ...formData, image_url: '' });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    
     try {
+      let updatedFormData = { ...formData };
+      
+      // If we have a new image file, upload it first
+      if (imageFile) {
+        try {
+          setIsUploading(true);
+          const imageUrl = await uploadImage(imageFile, 'menu-items');
+          setIsUploading(false);
+          
+          if (imageUrl) {
+            updatedFormData.image_url = imageUrl;
+          }
+        } catch (uploadError) {
+          setIsUploading(false);
+          // Display a more user-friendly error
+          if (uploadError instanceof Error) {
+            alert(`Image upload error: ${uploadError.message}`);
+          } else {
+            alert('Failed to upload image. Please try again or contact an administrator.');
+          }
+          return; // Stop form submission if image upload fails
+        }
+      }
+      
       // If we have a menuItem, this is an update operation, so include the ID
       const submitData = menuItem 
-        ? { ...formData, id: menuItem.id } 
-        : formData;
+        ? { ...updatedFormData, id: menuItem.id } 
+        : updatedFormData;
         
       await onSubmit(submitData);
       onClose();
@@ -114,11 +183,20 @@ export function MenuItemDialog({
     }
   };
 
+  // Clear up object URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (imagePreview && imageFile && !formData.image_url.includes(imagePreview)) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview, formData.image_url, imageFile]);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background rounded-lg p-6 w-full max-w-md">
+      <div className="bg-background rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-bold mb-4">{title}</h2>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -214,17 +292,50 @@ export function MenuItemDialog({
             />
           </div>
 
+          {/* Simple Image Upload */}
           <div>
-            <label className="block text-sm font-medium mb-1" htmlFor="image_url">
-              Image URL
+            <label className="block text-sm font-medium mb-1">
+              Item Image
             </label>
+            
+            {imagePreview ? (
+              <div className="mt-2 relative">
+                <div className="rounded-lg border overflow-hidden aspect-video flex items-center justify-center bg-muted">
+                  <img 
+                    src={imagePreview} 
+                    alt="Preview" 
+                    className="max-h-[200px] max-w-full object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/placeholder-food.png';
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="absolute top-2 right-2 rounded-full bg-background/80 p-1 hover:bg-background"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-2 w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-md hover:bg-muted/50"
+              >
+                <UploadCloud className="h-5 w-5" />
+                <span>Choose Image</span>
+              </button>
+            )}
+            
+            {/* Hidden file input */}
             <input
-              id="image_url"
-              type="text"
-              value={formData.image_url || ''}
-              onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-              className="w-full rounded-md border px-3 py-2"
-              placeholder="https://example.com/image.jpg"
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="hidden"
             />
           </div>
 
@@ -251,10 +362,11 @@ export function MenuItemDialog({
             </button>
             <button
               type="submit"
-              disabled={isLoading}
-              className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              disabled={isLoading || isUploading}
+              className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
             >
-              {isLoading ? 'Saving...' : 'Save Item'}
+              {(isLoading || isUploading) && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isUploading ? 'Uploading...' : isLoading ? 'Saving...' : 'Save Item'}
             </button>
           </div>
         </form>

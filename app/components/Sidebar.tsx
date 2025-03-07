@@ -12,7 +12,8 @@ import {
   ChevronLeft, 
   UtensilsCrossed,
   LogOut,
-  Home
+  Home,
+  Users
 } from 'lucide-react';
 import { cn } from '../lib/utils';   
 import { useAuth } from '../hooks/useAuth';
@@ -51,6 +52,11 @@ export function Sidebar() {
       name: 'Menu & Services', 
       path: '/dashboard/services', 
       icon: <UtensilsCrossed className="h-5 w-5" /> 
+    },
+    { 
+      name: 'Admin Management', 
+      path: '/dashboard/admins', 
+      icon: <Users className="h-5 w-5" /> 
     }
   ];
 
