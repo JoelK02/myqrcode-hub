@@ -24,6 +24,11 @@ interface UseNotificationsResult {
   playTestSound: () => void;
 }
 
+// Define ExtendedWindow interface for WebkitAudioContext
+interface ExtendedWindow extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
 /**
  * Hook for managing notification preferences with database persistence
  */
@@ -169,7 +174,7 @@ export function useNotifications(): UseNotificationsResult {
         // Fallback sound
         if (typeof window !== 'undefined') {
           try {
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const audioContext = new (window.AudioContext || (window as ExtendedWindow).webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
             

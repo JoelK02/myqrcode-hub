@@ -222,7 +222,7 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
     });
     
     console.log('Real-time notifications set up successfully in TopNav');
-  }, [buildings, playNotificationSound, toast]);
+  }, [buildings, playNotificationSound]);
 
   // Load buildings and set up subscriptions
   useEffect(() => {
@@ -274,7 +274,7 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
         previousBuildingIdsRef.current = buildings.map(building => building.id);
       }
     }
-  }, [buildings, user, setupRealTimeSubscriptions]);
+  }, [buildings, user, setupRealTimeSubscriptions, subscriptionsActive]);
 
   useEffect(() => {
     const handleScroll = () => {
