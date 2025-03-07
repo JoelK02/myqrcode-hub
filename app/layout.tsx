@@ -1,10 +1,12 @@
 import React from 'react';
+import { Inter } from 'next/font/google';
 import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from './providers';
 import { AuthProvider } from './components/AuthProvider';
 import { Toaster } from 'react-hot-toast';
-import { inter } from './lib/fonts';
+
+const inter = Inter({ subsets: ['latin'] });
 
 // Define metadata directly in the layout file
 export const metadata: Metadata = {

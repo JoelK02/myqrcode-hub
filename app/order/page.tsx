@@ -84,8 +84,8 @@ function OrderPage({ unitId }: { unitId: string }) {
           const servicesData = await getServices(undefined, unitData.building_id);
           setServices(servicesData);
           
-          // Fetch previous orders for this unit
-          const ordersData = await getOrders({ unit_id: unitId });
+          // Fetch previous orders for this unit with guest mode enabled
+          const ordersData = await getOrders({ unit_id: unitId }, true);
           setPreviousOrders(ordersData);
         } else {
           // If no building_id exists, set empty arrays

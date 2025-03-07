@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ClipboardList, 
   Filter, 
@@ -37,24 +37,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Define OrderPayload interface 
-interface OrderPayload {
-  id: string;
-  unit_id: string;
-  unit_number: string;
-  building_id: string;
-  status: string;
-  total_amount: number;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// Define Subscription interface
-interface Subscription {
-  unsubscribe: () => void;
-}
-
 export default function OrdersPage() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -83,75 +65,35 @@ export default function OrdersPage() {
   const [autoRefreshIndicator, setAutoRefreshIndicator] = useState<string | null>(null);
   
   // Array to store subscription objects
-  const subscriptions: Subscription[] = [];
+  const subscriptions: any[] = [];
   
   // Add a state to track if subscriptions are already set up
   const [subscriptionsActive, setSubscriptionsActive] = useState(false);
   
-  // Define fetchData and fetchCompletedOrders first
-  const fetchData = async (isAutoRefresh = false) => {
-    try {
-      if (!isAutoRefresh) {
-        setIsLoading(true);
-      }
-      
-      const [ordersData, buildingsData, adminsData] = await Promise.all([
-        getOrders(),
-        getBuildings(),
-        getAdmins()
-      ]);
-      
-      setOrders(ordersData);
-      setBuildings(buildingsData);
-      setAdmins(adminsData);
-      
-      // Set default admin if available
-      if (adminsData.length > 0) {
-        setCompleteAdminId(adminsData[0].id);
-      }
-    } catch (err) {
-      console.error('Error fetching orders:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Initial data loading
+  useEffect(() => {
+    fetchData();
+    fetchCompletedOrders();
+    
+    // Clean up subscriptions on unmount
+    return () => {
+      subscriptions.forEach(subscription => subscription.unsubscribe());
+    };
+  }, []);
   
-  const fetchOrderCompletion = async (orderId: string) => {
-    try {
-      setLoadingCompletion(true);
-      const completion = await getOrderCompletion(orderId);
-      setOrderCompletion(completion);
-    } catch (error) {
-      console.error('Error fetching order completion:', error);
-    } finally {
-      setLoadingCompletion(false);
+  // Set up real-time subscriptions after initial data load
+  useEffect(() => {
+    if (buildings.length > 0 && !subscriptionsActive) {
+      setupRealTimeSubscriptions();
+      setSubscriptionsActive(true);
     }
-  };
-
-  const fetchCompletedOrders = async (isAutoRefresh = false) => {
-    try {
-      if (!isAutoRefresh) {
-        setIsLoadingCompletedOrders(true);
-      } else {
-        // Show auto-refresh indicator for completed orders
-        setAutoRefreshIndicator('completions');
-        // Hide it after 2 seconds
-        setTimeout(() => setAutoRefreshIndicator(null), 2000);
-      }
-      const completedOrdersData = await getCompletedOrdersByUser();
-      setCompletedOrders(completedOrdersData);
-    } catch (error) {
-      console.error('Error fetching completed orders:', error);
-    } finally {
-      setIsLoadingCompletedOrders(false);
-    }
-  };
-
-  // Now define setupRealTimeSubscriptions using useCallback to avoid circular dependencies
-  const setupRealTimeSubscriptions = useCallback(() => {
+  }, [buildings, admins, subscriptionsActive]);
+  
+  // Setup real-time subscriptions for orders and order completions
+  const setupRealTimeSubscriptions = () => {
     // Clean up any existing subscriptions
     subscriptions.forEach(subscription => subscription.unsubscribe());
-    const newSubscriptions: Subscription[] = [];
+    const newSubscriptions = [];
     
     // Only proceed if there are buildings
     if (buildings.length === 0) {
@@ -179,7 +121,7 @@ export default function OrdersPage() {
           table: 'orders',
           filter: `building_id=in.(${buildingIds.join(',')})`,
         },
-        (payload: { new: OrderPayload }) => {
+        (payload) => {
           console.log('New order received in orders page:', payload);
           
           // Just refresh data, no notifications (handled by TopNav)
@@ -254,27 +196,66 @@ export default function OrdersPage() {
     
     // Store subscriptions in the component
     subscriptions.push(...newSubscriptions);
-  }, [buildings]);
+  };
 
-  // Initial data loading
-  useEffect(() => {
-    fetchData();
-    fetchCompletedOrders();
-    
-    // Clean up subscriptions on unmount
-    return () => {
-      subscriptions.forEach(subscription => subscription.unsubscribe());
-    };
-  }, [subscriptions]);
-
-  // Set up real-time subscriptions after initial data load
-  useEffect(() => {
-    if (buildings.length > 0 && !subscriptionsActive) {
-      setupRealTimeSubscriptions();
-      setSubscriptionsActive(true);
+  const fetchData = async (isAutoRefresh = false) => {
+    try {
+      if (!isAutoRefresh) {
+        setIsLoading(true);
+      }
+      
+      const [ordersData, buildingsData, adminsData] = await Promise.all([
+        getOrders(),
+        getBuildings(),
+        getAdmins()
+      ]);
+      
+      setOrders(ordersData);
+      setBuildings(buildingsData);
+      setAdmins(adminsData);
+      
+      // Set default admin if available
+      if (adminsData.length > 0) {
+        setCompleteAdminId(adminsData[0].id);
+      }
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+    } finally {
+      setIsLoading(false);
     }
-  }, [buildings, subscriptionsActive, setupRealTimeSubscriptions]);
+  };
   
+  const fetchOrderCompletion = async (orderId: string) => {
+    try {
+      setLoadingCompletion(true);
+      const completion = await getOrderCompletion(orderId);
+      setOrderCompletion(completion);
+    } catch (error) {
+      console.error('Error fetching order completion:', error);
+    } finally {
+      setLoadingCompletion(false);
+    }
+  };
+
+  const fetchCompletedOrders = async (isAutoRefresh = false) => {
+    try {
+      if (!isAutoRefresh) {
+        setIsLoadingCompletedOrders(true);
+      } else {
+        // Show auto-refresh indicator for completed orders
+        setAutoRefreshIndicator('completions');
+        // Hide it after 2 seconds
+        setTimeout(() => setAutoRefreshIndicator(null), 2000);
+      }
+      const completedOrdersData = await getCompletedOrdersByUser();
+      setCompletedOrders(completedOrdersData);
+    } catch (error) {
+      console.error('Error fetching completed orders:', error);
+    } finally {
+      setIsLoadingCompletedOrders(false);
+    }
+  };
+
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
       setIsUpdating(true);

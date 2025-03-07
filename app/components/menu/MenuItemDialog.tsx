@@ -144,7 +144,7 @@ export function MenuItemDialog({
     setIsLoading(true);
     
     try {
-      const updatedFormData = { ...formData };
+      let updatedFormData = { ...formData };
       
       // If we have a new image file, upload it first
       if (imageFile) {
