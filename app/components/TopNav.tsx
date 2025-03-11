@@ -282,7 +282,7 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
   useEffect(() => {
     loadBuildings();
     
-  }, []); 
+  }, [loadBuildings]); 
 
   // Set up subscriptions when buildings change
   useEffect(() => {
