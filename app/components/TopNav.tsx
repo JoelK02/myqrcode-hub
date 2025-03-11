@@ -241,7 +241,7 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
     subscriptions.current.push(ordersSubscription);
     
     console.log('Real-time notifications set up successfully in TopNav');
-  }, [buildings, playNotificationSound]);
+  }, [buildings]);
 
   // Update the loadBuildings function to ensure subscriptions are setup properly
   const loadBuildings = useCallback(async () => {
