@@ -276,6 +276,8 @@ export async function deleteMenuItem(id: string): Promise<void> {
 export async function ensureImageStorageBucket() {
   try {
     const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+
+    console.log('Buckets:', buckets);
     
     if (listError) {
       console.warn('Unable to list buckets, will attempt to use existing bucket:', listError);

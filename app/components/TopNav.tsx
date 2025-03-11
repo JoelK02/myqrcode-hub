@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Bell, BellOff, User } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
@@ -14,12 +14,38 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Update the ExtendedWindow interface
+interface ExtendedWindow extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
+// Define a type for the order payload
+interface OrderPayload {
+  id: string;
+  unit_id: string;
+  unit_number: string;
+  building_id: string;
+  status: string;
+  total_amount: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Define extended Building interface to include units
+interface ExtendedBuilding extends Building {
+  units?: {
+    id: string;
+    unit_number: string;
+  }[];
+}
+
 export function TopNav({ title = 'Dashboard' }: { title?: string }) {
   const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [username, setUsername] = useState('');
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
-  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [buildings, setBuildings] = useState<ExtendedBuilding[]>([]);
   const [subscriptionsActive, setSubscriptionsActive] = useState(false);
   
   // Store subscriptions
@@ -98,16 +124,24 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
     }
   };
   
-  // Fallback sound using Web Audio API
+  // Update the playFallbackSound function
   const playFallbackSound = () => {
     if (typeof window !== 'undefined') {
       try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const AudioContext = window.AudioContext || 
+          (window as ExtendedWindow).webkitAudioContext;
+          
+        if (!AudioContext) {
+          console.error('Neither AudioContext nor webkitAudioContext is available');
+          return;
+        }
+        
+        const audioContext = new AudioContext();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
         
         oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime);
         gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
         
         oscillator.connect(gainNode);
@@ -130,72 +164,31 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
     // The refs will be used by the existing subscriptions
   }, [soundEnabled, browserEnabled, dbEnabled]);
 
-  // Load buildings and set up subscriptions
-  useEffect(() => {
-    const loadBuildings = async () => {
-      try {
-        const buildingsData = await getBuildings();
-        setBuildings(buildingsData);
-      } catch (error) {
-        console.error('Error loading buildings:', error);
-      }
-    };
-
-    if (user) {
-      loadBuildings();
-    }
-
-    return () => {
-      // Clean up subscriptions on unmount
-      subscriptions.current.forEach(subscription => {
-        if (subscription && typeof subscription.unsubscribe === 'function') {
-          subscription.unsubscribe();
-        }
-      });
-      subscriptions.current = [];
-    };
-  }, [user]);
-
-  // Set up real-time subscriptions
-  useEffect(() => {
-    if (buildings.length > 0 && user) {
-      // Extract building IDs
-      const currentBuildingIds = buildings.map(building => building.id).sort().join(',');
-      const previousBuildingIds = previousBuildingIdsRef.current.sort().join(',');
-      
-      // Only setup subscriptions if the building IDs have changed or subscriptions aren't active
-      if (!subscriptionsActive || currentBuildingIds !== previousBuildingIds) {
-        setupRealTimeSubscriptions();
-        setSubscriptionsActive(true);
-        
-        // Store the building IDs for future comparison
-        previousBuildingIdsRef.current = buildings.map(building => building.id);
-      }
-    }
-  }, [buildings, user]);
-
-  const setupRealTimeSubscriptions = () => {
-    // Clean up any existing subscriptions
-    subscriptions.current.forEach(subscription => {
+  // Improve subscription management
+  const setupRealTimeSubscriptions = useCallback(() => {
+    console.log('Setting up real-time subscriptions in TopNav');
+    
+    // Clean up any existing subscriptions first
+    subscriptions.current.forEach((subscription) => {
       if (subscription && typeof subscription.unsubscribe === 'function') {
         subscription.unsubscribe();
       }
     });
     subscriptions.current = [];
-
-    // Get all building IDs that belong to this user
-    const buildingIds = buildings.map(building => building.id);
     
-    if (buildingIds.length === 0) {
+    // If we have no buildings, don't set up subscriptions
+    if (!buildings || buildings.length === 0) {
       console.log('No buildings to subscribe to in TopNav');
       return;
     }
     
+    // Get all building IDs that belong to this user
+    const buildingIds = buildings.map(building => building.id);
     console.log('Setting up real-time notifications in TopNav for buildings:', buildingIds);
-    
-    // Listen for new orders (INSERT events)
-    const newOrdersSubscription = supabase
-      .channel('topnav-new-orders')
+
+    // Create a single subscription for all buildings for orders
+    const ordersSubscription = supabase
+      .channel('topnav-orders-all-buildings')
       .on(
         'postgres_changes',
         {
@@ -204,11 +197,11 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
           table: 'orders',
           filter: `building_id=in.(${buildingIds.join(',')})`,
         },
-        (payload) => {
-          console.log('TopNav: New order received:', payload);
+        (payload: { new: OrderPayload }) => {
+          console.log('New order received in TopNav:', payload);
           
           // Get building name and unit for the notification
-          const newOrder = payload.new as any;
+          const newOrder = payload.new;
           const building = buildings.find(b => b.id === newOrder.building_id);
           const orderMessage = building 
             ? `New order for ${building.name}, Unit ${newOrder.unit_number}`
@@ -238,11 +231,55 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
         }
       )
       .subscribe();
-    
-    subscriptions.current.push(newOrdersSubscription);
+
+    // Add to subscriptions list
+    subscriptions.current.push(ordersSubscription);
     
     console.log('Real-time notifications set up successfully in TopNav');
-  };
+  }, [buildings, playNotificationSound, toast]);
+
+  // Update the loadBuildings function to ensure subscriptions are setup properly
+  const loadBuildings = useCallback(async () => {
+    try {
+      console.log('Loading buildings for real-time notifications...');
+      const buildingsData = await getBuildings();
+      
+      if (buildingsData && buildingsData.length > 0) {
+        setBuildings(buildingsData);
+        console.log('Buildings loaded successfully:', buildingsData.length);
+      } else {
+        console.log('No buildings found');
+      }
+    } catch (error) {
+      console.error('Error loading buildings:', error);
+    }
+  }, []);
+
+  // Update how we load buildings and set up subscriptions
+  useEffect(() => {
+    // Only load buildings if user is authenticated
+    if (user) {
+      loadBuildings();
+    }
+    
+    return () => {
+      // Clean up subscriptions on unmount
+      console.log('Cleaning up all subscriptions');
+      subscriptions.current.forEach((subscription) => {
+        if (subscription && typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe();
+        }
+      });
+      subscriptions.current = [];
+    };
+  }, []);
+
+  // Set up subscriptions when buildings change
+  useEffect(() => {
+    if (buildings && buildings.length > 0) {
+      setupRealTimeSubscriptions();
+    }
+  }, [buildings]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -290,6 +327,34 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
     }
   };
 
+  const handleTestRealtime = () => {
+    console.log('Testing real-time notification');
+    
+    // Check if we have subscriptions
+    console.log('Current subscriptions:', subscriptions.current);
+    
+    // Show toast notification
+    toast.success('🧪 Testing real-time notification system', {
+      duration: 3000,
+      icon: '🔌'
+    });
+    
+    // Play sound if enabled
+    if (soundEnabled) {
+      playNotificationSound();
+    }
+    
+    // Log subscription details to help with debugging
+    if (buildings && buildings.length > 0) {
+      console.log('Subscribed to buildings:', buildings.map(b => b.name));
+    } else {
+      console.log('No buildings loaded for subscriptions');
+      
+      // Attempt to reload buildings
+      loadBuildings();
+    }
+  };
+
   // Close notification settings when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -304,6 +369,29 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showNotificationSettings]);
+
+  // Add a function to manually reconnect subscriptions
+  const handleReconnectSubscriptions = () => {
+    console.log('Manually reconnecting subscriptions');
+    
+    // Clean up existing subscriptions
+    subscriptions.current.forEach((subscription) => {
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
+    });
+    subscriptions.current = [];
+    
+    // Reload buildings and set up subscriptions again
+    loadBuildings().then(() => {
+      console.log('Buildings reloaded, setting up subscriptions');
+      setupRealTimeSubscriptions();
+      
+      toast.success('🔄 Reconnected to notification system', {
+        duration: 3000
+      });
+    });
+  };
 
   return (
     <header className={cn(
@@ -368,6 +456,24 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
                   )}
                 >
                   Test Notification
+                </button>
+                
+                <button 
+                  onClick={handleTestRealtime}
+                  className={cn(
+                    "mt-2 w-full py-2 px-4 text-sm rounded bg-blue-500 text-white",
+                  )}
+                >
+                  Test Real-time Connection
+                </button>
+                
+                <button 
+                  onClick={handleReconnectSubscriptions}
+                  className={cn(
+                    "mt-2 w-full py-2 px-4 text-sm rounded bg-green-500 text-white",
+                  )}
+                >
+                  Reconnect Subscriptions
                 </button>
                 
                 <p className="text-xs text-muted-foreground">

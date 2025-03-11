@@ -37,12 +37,12 @@ export default function ServicesPage() {
         setIsLoading(true);
         
         // Try to ensure the images storage bucket exists
-        try {
-          await ensureImageStorageBucket();
-        } catch (bucketError) {
-          console.warn('Could not set up image storage bucket, but continuing:', bucketError);
-          // Don't return - continue loading other data
-        }
+        // try {
+        //   await ensureImageStorageBucket();
+        // } catch (bucketError) {
+        //   console.warn('Could not set up image storage bucket, but continuing:', bucketError);
+        //   // Don't return - continue loading other data
+        // }
         
         const [menuData, servicesData, buildingsData] = await Promise.all([
           getMenuItems(),
