@@ -40,6 +40,11 @@ interface ExtendedBuilding extends Building {
   }[];
 }
 
+// Define a proper type for Supabase subscriptions
+interface SupabaseSubscription {
+  unsubscribe: () => void;
+}
+
 export function TopNav({ title = 'Dashboard' }: { title?: string }) {
   const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
@@ -48,8 +53,8 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
   const [buildings, setBuildings] = useState<ExtendedBuilding[]>([]);
   const [subscriptionsActive, setSubscriptionsActive] = useState(false);
   
-  // Store subscriptions
-  const subscriptions = useRef<any[]>([]);
+  // Store subscriptions with proper type
+  const subscriptions = useRef<SupabaseSubscription[]>([]);
   
   // Preload notification sound
   const notificationAudio = useRef<HTMLAudioElement | null>(null);
