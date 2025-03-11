@@ -9,8 +9,34 @@ export async function getOrders(filters?: {
   unit_id?: string;
   building_id?: string;
   status?: string;
-}): Promise<Order[]> {
+}, guestMode: boolean = false): Promise<Order[]> {
   try {
+    // For guest mode, just filter by the unit_id if provided
+    if (guestMode && filters?.unit_id) {
+      let query = supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items:order_items(*)
+        `)
+        .eq('unit_id', filters.unit_id)
+        .order('created_at', { ascending: false });
+      
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        throw new Error(`Failed to fetch orders: ${error.message}`);
+      }
+      
+      return data || [];
+    }
+    
+    // Regular authenticated mode below
     // Get the current authenticated user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
@@ -109,16 +135,16 @@ export async function getOrder(id: string): Promise<Order | null> {
   }
 }
 
-export async function createOrder(orderInput: CreateOrderInput): Promise<Order> {
+export async function createOrder(orderInput: CreateOrderInput, guestMode: boolean = true): Promise<Order> {
   try {
-    // Start a Supabase transaction (not a real transaction, but a sequence of operations)
+    // No authentication check for guest mode - allow orders from QR code scans
     
-    // 1. Calculate total amount
+    // Calculate total amount
     const totalAmount = orderInput.items.reduce((sum, item) => {
       return sum + (item.price * item.quantity);
     }, 0);
     
-    // 2. Create the order
+    // Create the order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -138,7 +164,7 @@ export async function createOrder(orderInput: CreateOrderInput): Promise<Order> 
       throw new Error(`Failed to create order: ${orderError.message}`);
     }
     
-    // 3. Create order items
+    // Create order items
     const orderItems = orderInput.items.map(item => ({
       order_id: order.id,
       item_type: item.item_type,
@@ -161,7 +187,7 @@ export async function createOrder(orderInput: CreateOrderInput): Promise<Order> 
       throw new Error(`Failed to create order items: ${itemsError.message}`);
     }
     
-    // 4. Return the full order with items
+    // Return the full order with items
     return {
       ...order,
       order_items: items as OrderItem[]

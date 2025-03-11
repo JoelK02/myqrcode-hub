@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { getUserProfile, updateNotificationPreference } from '../services/userProfile';
 
+// Define interface for Window with potential webkitAudioContext
+interface ExtendedWindow extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
 interface NotificationSettings {
   dbEnabled: boolean;
   browserEnabled: boolean;
@@ -22,11 +27,6 @@ interface UseNotificationsResult {
   canShowNotifications: () => boolean;
   showTestNotification: () => void;
   playTestSound: () => void;
-}
-
-// Define ExtendedWindow interface for WebkitAudioContext
-interface ExtendedWindow extends Window {
-  webkitAudioContext?: typeof AudioContext;
 }
 
 /**

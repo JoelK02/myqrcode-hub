@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   ClipboardList, 
   Filter, 
@@ -32,26 +32,14 @@ import { Admin, OrderCompletion } from '../../services/admin';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../hooks/useAuth';
 import { createClient } from '@supabase/supabase-js';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Define OrderPayload interface 
-interface OrderPayload {
-  id: string;
-  unit_id: string;
-  unit_number: string;
-  building_id: string;
-  status: string;
-  total_amount: number;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// Define Subscription interface
-interface Subscription {
+// Define a proper type for the Supabase subscription
+interface SupabaseSubscription {
   unsubscribe: () => void;
 }
 
@@ -82,14 +70,14 @@ export default function OrdersPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [autoRefreshIndicator, setAutoRefreshIndicator] = useState<string | null>(null);
   
-  // Array to store subscription objects
-  const subscriptions: Subscription[] = [];
+  // Use the proper type instead of any
+  const subscriptionsRef = useRef<SupabaseSubscription[]>([]);
   
   // Add a state to track if subscriptions are already set up
   const [subscriptionsActive, setSubscriptionsActive] = useState(false);
   
-  // Define fetchData and fetchCompletedOrders first
-  const fetchData = async (isAutoRefresh = false) => {
+  // Wrap fetchData in useCallback
+  const fetchData = useCallback(async (isAutoRefresh = false) => {
     try {
       if (!isAutoRefresh) {
         setIsLoading(true);
@@ -114,7 +102,7 @@ export default function OrdersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
   
   const fetchOrderCompletion = async (orderId: string) => {
     try {
@@ -128,7 +116,8 @@ export default function OrdersPage() {
     }
   };
 
-  const fetchCompletedOrders = async (isAutoRefresh = false) => {
+  // Wrap fetchCompletedOrders in useCallback
+  const fetchCompletedOrders = useCallback(async (isAutoRefresh = false) => {
     try {
       if (!isAutoRefresh) {
         setIsLoadingCompletedOrders(true);
@@ -145,13 +134,13 @@ export default function OrdersPage() {
     } finally {
       setIsLoadingCompletedOrders(false);
     }
-  };
-
-  // Now define setupRealTimeSubscriptions using useCallback to avoid circular dependencies
+  }, []);
+  
+  // Now define setupRealTimeSubscriptions with access to the functions it depends on
   const setupRealTimeSubscriptions = useCallback(() => {
     // Clean up any existing subscriptions
-    subscriptions.forEach(subscription => subscription.unsubscribe());
-    const newSubscriptions: Subscription[] = [];
+    subscriptionsRef.current.forEach(subscription => subscription.unsubscribe());
+    subscriptionsRef.current = [];
     
     // Only proceed if there are buildings
     if (buildings.length === 0) {
@@ -179,7 +168,7 @@ export default function OrdersPage() {
           table: 'orders',
           filter: `building_id=in.(${buildingIds.join(',')})`,
         },
-        (payload: { new: OrderPayload }) => {
+        (payload) => {
           console.log('New order received in orders page:', payload);
           
           // Just refresh data, no notifications (handled by TopNav)
@@ -188,7 +177,7 @@ export default function OrdersPage() {
       )
       .subscribe();
     
-    newSubscriptions.push(newOrdersSubscription);
+    subscriptionsRef.current.push(newOrdersSubscription);
     
     // 2. Listen for updated orders (UPDATE events)
     const updatedOrdersSubscription = supabase
@@ -209,7 +198,7 @@ export default function OrdersPage() {
       )
       .subscribe();
     
-    newSubscriptions.push(updatedOrdersSubscription);
+    subscriptionsRef.current.push(updatedOrdersSubscription);
     
     // 3. Listen for deleted orders (DELETE events) - less common but good to handle
     const deletedOrdersSubscription = supabase
@@ -229,7 +218,7 @@ export default function OrdersPage() {
       )
       .subscribe();
     
-    newSubscriptions.push(deletedOrdersSubscription);
+    subscriptionsRef.current.push(deletedOrdersSubscription);
     
     // 4. Listen for order completion events - we only want completions for our buildings
     // Since we can't directly filter order_completions by building_id (it's in the orders table),
@@ -250,12 +239,9 @@ export default function OrdersPage() {
       )
       .subscribe();
     
-    newSubscriptions.push(orderCompletionSubscription);
-    
-    // Store subscriptions in the component
-    subscriptions.push(...newSubscriptions);
-  }, [buildings]);
-
+    subscriptionsRef.current.push(orderCompletionSubscription);
+  }, [buildings, fetchData, fetchCompletedOrders]);
+  
   // Initial data loading
   useEffect(() => {
     fetchData();
@@ -263,18 +249,18 @@ export default function OrdersPage() {
     
     // Clean up subscriptions on unmount
     return () => {
-      subscriptions.forEach(subscription => subscription.unsubscribe());
+      subscriptionsRef.current.forEach(subscription => subscription.unsubscribe());
     };
-  }, [subscriptions]);
-
+  }, [fetchData, fetchCompletedOrders]); // Add the memoized functions as dependencies
+  
   // Set up real-time subscriptions after initial data load
   useEffect(() => {
     if (buildings.length > 0 && !subscriptionsActive) {
       setupRealTimeSubscriptions();
       setSubscriptionsActive(true);
     }
-  }, [buildings, subscriptionsActive, setupRealTimeSubscriptions]);
-  
+  }, [buildings, admins, subscriptionsActive, setupRealTimeSubscriptions]);
+
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
       setIsUpdating(true);
@@ -294,7 +280,7 @@ export default function OrdersPage() {
         if (newStatus === 'completed') {
           fetchOrderCompletion(orderId);
         } else {
-          setOrderCompletion(null);
+            setOrderCompletion(null);
         }
       }
     } catch (error) {
