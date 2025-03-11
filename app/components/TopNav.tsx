@@ -220,7 +220,30 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
           
           // Play sound if enabled
           if (soundEnabledRef.current) {
-            playNotificationSound();
+            try {
+                  // Try to use the preloaded audio element first
+                  if (notificationAudio.current) {
+                    // Clone the audio to allow multiple simultaneous plays
+                    const audioClone = notificationAudio.current.cloneNode() as HTMLAudioElement;
+                    audioClone.volume = 0.6;
+                    audioClone.play().catch((error) => {
+                      console.error('Error playing preloaded notification sound:', error);
+                      playFallbackSound();
+                    });
+                    return;
+                  }
+                  
+                  // Fallback to creating a new Audio object
+                  const audio = new Audio('/notification.mp3');
+                  audio.volume = 0.6;
+                  audio.play().catch((error) => {
+                    console.error('Error playing notification sound:', error);
+                    playFallbackSound();
+                  });
+                } catch (err) {
+                  console.error('Failed to play notification sound:', err);
+                  playFallbackSound();
+                }
           }
           
           // Show browser notification if enabled
