@@ -261,30 +261,35 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
   }, []);
 
   // Update how we load buildings and set up subscriptions
-  useEffect(() => {
-    // Only load buildings if user is authenticated
-    if (user) {
-      loadBuildings();
-    }
+  // useEffect(() => {
+  //   // Only load buildings if user is authenticated
+  //   if (user) {
+  //     loadBuildings();
+  //   }
     
-    return () => {
-      // Clean up subscriptions on unmount
-      console.log('Cleaning up all subscriptions');
-      subscriptions.current.forEach((subscription) => {
-        if (subscription && typeof subscription.unsubscribe === 'function') {
-          subscription.unsubscribe();
-        }
-      });
-      subscriptions.current = [];
-    };
-  }, []);
+  //   return () => {
+  //     // Clean up subscriptions on unmount
+  //     console.log('Cleaning up all subscriptions');
+  //     subscriptions.current.forEach((subscription) => {
+  //       if (subscription && typeof subscription.unsubscribe === 'function') {
+  //         subscription.unsubscribe();
+  //       }
+  //     });
+  //     subscriptions.current = [];
+  //   };
+  // }, []);
+
+  useEffect(() => {
+    loadBuildings();
+    
+  }, []); 
 
   // Set up subscriptions when buildings change
   useEffect(() => {
     if (buildings && buildings.length > 0) {
       setupRealTimeSubscriptions();
     }
-  }, [buildings]);
+  }, [buildings, setupRealTimeSubscriptions]);
 
   useEffect(() => {
     const handleScroll = () => {
