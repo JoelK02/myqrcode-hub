@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { getUserProfile, updateNotificationPreference } from '../services/userProfile';
 
+// Define interface for Window with potential webkitAudioContext
+interface ExtendedWindow extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
 interface NotificationSettings {
   dbEnabled: boolean;
   browserEnabled: boolean;
@@ -169,7 +174,7 @@ export function useNotifications(): UseNotificationsResult {
         // Fallback sound
         if (typeof window !== 'undefined') {
           try {
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const audioContext = new (window.AudioContext || (window as ExtendedWindow).webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
             
