@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   ClipboardList, 
   Filter, 
@@ -64,140 +64,13 @@ export default function OrdersPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [autoRefreshIndicator, setAutoRefreshIndicator] = useState<string | null>(null);
   
-  // Array to store subscription objects
-  const subscriptions: any[] = [];
+  // Convert to useRef to maintain the array across renders without triggering effects
+  const subscriptionsRef = useRef<any[]>([]);
   
   // Add a state to track if subscriptions are already set up
   const [subscriptionsActive, setSubscriptionsActive] = useState(false);
   
-  // Initial data loading
-  useEffect(() => {
-    fetchData();
-    fetchCompletedOrders();
-    
-    // Clean up subscriptions on unmount
-    return () => {
-      subscriptions.forEach(subscription => subscription.unsubscribe());
-    };
-  }, []);
-  
-  // Set up real-time subscriptions after initial data load
-  useEffect(() => {
-    if (buildings.length > 0 && !subscriptionsActive) {
-      setupRealTimeSubscriptions();
-      setSubscriptionsActive(true);
-    }
-  }, [buildings, admins, subscriptionsActive]);
-  
-  // Setup real-time subscriptions for orders and order completions
-  const setupRealTimeSubscriptions = () => {
-    // Clean up any existing subscriptions
-    subscriptions.forEach(subscription => subscription.unsubscribe());
-    const newSubscriptions = [];
-    
-    // Only proceed if there are buildings
-    if (buildings.length === 0) {
-      return;
-    }
-    
-    // Get all building IDs that belong to this user
-    const buildingIds = buildings.map(building => building.id);
-    
-    if (buildingIds.length === 0) {
-      console.log('No buildings to subscribe to');
-      return;
-    }
-    
-    console.log('Setting up real-time subscriptions for buildings:', buildingIds);
-    
-    // 1. Listen for new orders (INSERT events)
-    const newOrdersSubscription = supabase
-      .channel('new-orders')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'orders',
-          filter: `building_id=in.(${buildingIds.join(',')})`,
-        },
-        (payload) => {
-          console.log('New order received in orders page:', payload);
-          
-          // Just refresh data, no notifications (handled by TopNav)
-          fetchData(true);
-        }
-      )
-      .subscribe();
-    
-    newSubscriptions.push(newOrdersSubscription);
-    
-    // 2. Listen for updated orders (UPDATE events)
-    const updatedOrdersSubscription = supabase
-      .channel('updated-orders')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `building_id=in.(${buildingIds.join(',')})`,
-        },
-        (payload) => {
-          console.log('Order updated:', payload);
-          // Refresh orders data without special notification
-          fetchData(true);
-        }
-      )
-      .subscribe();
-    
-    newSubscriptions.push(updatedOrdersSubscription);
-    
-    // 3. Listen for deleted orders (DELETE events) - less common but good to handle
-    const deletedOrdersSubscription = supabase
-      .channel('deleted-orders')
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'orders',
-          filter: `building_id=in.(${buildingIds.join(',')})`,
-        },
-        (payload) => {
-          console.log('Order deleted:', payload);
-          fetchData(true);
-        }
-      )
-      .subscribe();
-    
-    newSubscriptions.push(deletedOrdersSubscription);
-    
-    // 4. Listen for order completion events - we only want completions for our buildings
-    // Since we can't directly filter order_completions by building_id (it's in the orders table),
-    // we'll get all completions and then filter them in the fetchCompletedOrders function
-    const orderCompletionSubscription = supabase
-      .channel('order-completions')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'order_completions',
-        },
-        (payload) => {
-          console.log('Order completion:', payload);
-          fetchCompletedOrders(true);
-        }
-      )
-      .subscribe();
-    
-    newSubscriptions.push(orderCompletionSubscription);
-    
-    // Store subscriptions in the component
-    subscriptions.push(...newSubscriptions);
-  };
-
+  // Define fetchData and fetchCompletedOrders before setupRealTimeSubscriptions
   const fetchData = async (isAutoRefresh = false) => {
     try {
       if (!isAutoRefresh) {
@@ -255,6 +128,131 @@ export default function OrdersPage() {
       setIsLoadingCompletedOrders(false);
     }
   };
+  
+  // Now define setupRealTimeSubscriptions with access to the functions it depends on
+  const setupRealTimeSubscriptions = useCallback(() => {
+    // Clean up any existing subscriptions
+    subscriptionsRef.current.forEach(subscription => subscription.unsubscribe());
+    subscriptionsRef.current = [];
+    
+    // Only proceed if there are buildings
+    if (buildings.length === 0) {
+      return;
+    }
+    
+    // Get all building IDs that belong to this user
+    const buildingIds = buildings.map(building => building.id);
+    
+    if (buildingIds.length === 0) {
+      console.log('No buildings to subscribe to');
+      return;
+    }
+    
+    console.log('Setting up real-time subscriptions for buildings:', buildingIds);
+    
+    // 1. Listen for new orders (INSERT events)
+    const newOrdersSubscription = supabase
+      .channel('new-orders')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+          filter: `building_id=in.(${buildingIds.join(',')})`,
+        },
+        (payload) => {
+          console.log('New order received in orders page:', payload);
+          
+          // Just refresh data, no notifications (handled by TopNav)
+          fetchData(true);
+        }
+      )
+      .subscribe();
+    
+    subscriptionsRef.current.push(newOrdersSubscription);
+    
+    // 2. Listen for updated orders (UPDATE events)
+    const updatedOrdersSubscription = supabase
+      .channel('updated-orders')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `building_id=in.(${buildingIds.join(',')})`,
+        },
+        (payload) => {
+          console.log('Order updated:', payload);
+          // Refresh orders data without special notification
+          fetchData(true);
+        }
+      )
+      .subscribe();
+    
+    subscriptionsRef.current.push(updatedOrdersSubscription);
+    
+    // 3. Listen for deleted orders (DELETE events) - less common but good to handle
+    const deletedOrdersSubscription = supabase
+      .channel('deleted-orders')
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'orders',
+          filter: `building_id=in.(${buildingIds.join(',')})`,
+        },
+        (payload) => {
+          console.log('Order deleted:', payload);
+          fetchData(true);
+        }
+      )
+      .subscribe();
+    
+    subscriptionsRef.current.push(deletedOrdersSubscription);
+    
+    // 4. Listen for order completion events - we only want completions for our buildings
+    // Since we can't directly filter order_completions by building_id (it's in the orders table),
+    // we'll get all completions and then filter them in the fetchCompletedOrders function
+    const orderCompletionSubscription = supabase
+      .channel('order-completions')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'order_completions',
+        },
+        (payload) => {
+          console.log('Order completion:', payload);
+          fetchCompletedOrders(true);
+        }
+      )
+      .subscribe();
+    
+    subscriptionsRef.current.push(orderCompletionSubscription);
+  }, [buildings, fetchData, fetchCompletedOrders]);
+  
+  // Initial data loading
+  useEffect(() => {
+    fetchData();
+    fetchCompletedOrders();
+    
+    // Clean up subscriptions on unmount
+    return () => {
+      subscriptionsRef.current.forEach(subscription => subscription.unsubscribe());
+    };
+  }, []); // No need to add subscriptionsRef as a dependency
+  
+  // Set up real-time subscriptions after initial data load
+  useEffect(() => {
+    if (buildings.length > 0 && !subscriptionsActive) {
+      setupRealTimeSubscriptions();
+      setSubscriptionsActive(true);
+    }
+  }, [buildings, admins, subscriptionsActive, setupRealTimeSubscriptions]);
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
@@ -275,7 +273,7 @@ export default function OrdersPage() {
         if (newStatus === 'completed') {
           fetchOrderCompletion(orderId);
         } else {
-          setOrderCompletion(null);
+            setOrderCompletion(null);
         }
       }
     } catch (error) {
