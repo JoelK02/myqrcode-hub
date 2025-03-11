@@ -251,7 +251,7 @@ export default function OrdersPage() {
     return () => {
       subscriptionsRef.current.forEach(subscription => subscription.unsubscribe());
     };
-  }, []); // No need to add subscriptionsRef as a dependency
+  }, [fetchData, fetchCompletedOrders]); // Add the memoized functions as dependencies
   
   // Set up real-time subscriptions after initial data load
   useEffect(() => {
