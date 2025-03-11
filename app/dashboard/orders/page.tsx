@@ -32,10 +32,16 @@ import { Admin, OrderCompletion } from '../../services/admin';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../hooks/useAuth';
 import { createClient } from '@supabase/supabase-js';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Define a proper type for the Supabase subscription
+interface SupabaseSubscription {
+  unsubscribe: () => void;
+}
 
 export default function OrdersPage() {
   const { user } = useAuth();
@@ -64,14 +70,14 @@ export default function OrdersPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [autoRefreshIndicator, setAutoRefreshIndicator] = useState<string | null>(null);
   
-  // Convert to useRef to maintain the array across renders without triggering effects
-  const subscriptionsRef = useRef<any[]>([]);
+  // Use the proper type instead of any
+  const subscriptionsRef = useRef<SupabaseSubscription[]>([]);
   
   // Add a state to track if subscriptions are already set up
   const [subscriptionsActive, setSubscriptionsActive] = useState(false);
   
-  // Define fetchData and fetchCompletedOrders before setupRealTimeSubscriptions
-  const fetchData = async (isAutoRefresh = false) => {
+  // Wrap fetchData in useCallback
+  const fetchData = useCallback(async (isAutoRefresh = false) => {
     try {
       if (!isAutoRefresh) {
         setIsLoading(true);
@@ -96,7 +102,7 @@ export default function OrdersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
   
   const fetchOrderCompletion = async (orderId: string) => {
     try {
@@ -110,7 +116,8 @@ export default function OrdersPage() {
     }
   };
 
-  const fetchCompletedOrders = async (isAutoRefresh = false) => {
+  // Wrap fetchCompletedOrders in useCallback
+  const fetchCompletedOrders = useCallback(async (isAutoRefresh = false) => {
     try {
       if (!isAutoRefresh) {
         setIsLoadingCompletedOrders(true);
@@ -127,7 +134,7 @@ export default function OrdersPage() {
     } finally {
       setIsLoadingCompletedOrders(false);
     }
-  };
+  }, []);
   
   // Now define setupRealTimeSubscriptions with access to the functions it depends on
   const setupRealTimeSubscriptions = useCallback(() => {
