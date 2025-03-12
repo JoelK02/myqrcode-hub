@@ -462,6 +462,20 @@ function OrderPage({ unitId }: { unitId: string }) {
                             </div>
                           )}
                           
+                          {/* Image display for service items */}
+                          {activeTab === 'service' && item.image_url && (
+                            <div className="mb-3 rounded-md overflow-hidden aspect-video bg-gray-100">
+                              <img 
+                                src={item.image_url} 
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = '/placeholder-service.png';
+                                }}
+                              />
+                            </div>
+                          )}
+                          
                           <div className="flex justify-between">
                             <div>
                               <h3 className="font-medium">{item.name}</h3>

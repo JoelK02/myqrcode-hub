@@ -285,41 +285,42 @@ export async function ensureImageStorageBucket() {
     }
     
     // Import the IMAGE_BUCKET constant from imageUtils
-    const { IMAGE_BUCKET } = await import('../lib/imageUtils');
+    const { IMAGE_BUCKETS } = await import('../lib/imageUtils');
+
     
     // Check if the images bucket exists
-    const imagesBucketExists = buckets?.some(bucket => bucket.name === IMAGE_BUCKET);
+    const imagesBucketExists = buckets?.some(bucket => bucket.name === IMAGE_BUCKETS.FOOD);
     
     if (!imagesBucketExists) {
-      console.log(`Bucket '${IMAGE_BUCKET}' doesn't exist. Trying to create it...`);
+      console.log(`Bucket '${IMAGE_BUCKETS.FOOD}' doesn't exist. Trying to create it...`);
       try {
-        const { data, error } = await supabase.storage.createBucket(IMAGE_BUCKET, {
+        const { data, error } = await supabase.storage.createBucket(IMAGE_BUCKETS.FOOD, {
           public: true,
           fileSizeLimit: 2097152, // 2MB limit
         });
         
         if (error) {
-          console.warn(`Cannot create bucket '${IMAGE_BUCKET}'. Will try to use it anyway:`, error);
+          console.warn(`Cannot create bucket '${IMAGE_BUCKETS.FOOD}'. Will try to use it anyway:`, error);
         } else {
-          console.log(`Created bucket '${IMAGE_BUCKET}' successfully`);
+          console.log(`Created bucket '${IMAGE_BUCKETS.FOOD}' successfully`);
         }
       } catch (createError) {
-        console.warn(`Error creating bucket '${IMAGE_BUCKET}'. Will try to use it anyway:`, createError);
+        console.warn(`Error creating bucket '${IMAGE_BUCKETS.FOOD}'. Will try to use it anyway:`, createError);
       }
     } else {
-      console.log(`Bucket '${IMAGE_BUCKET}' already exists`);
+      console.log(`Bucket '${IMAGE_BUCKETS.FOOD}' already exists`);
       
       // Try to update the bucket to ensure it's public
       try {
-        const { error: updateError } = await supabase.storage.updateBucket(IMAGE_BUCKET, {
+        const { error: updateError } = await supabase.storage.updateBucket(IMAGE_BUCKETS.FOOD, {
           public: true,
         });
         
         if (updateError) {
-          console.warn(`Cannot update bucket '${IMAGE_BUCKET}' settings, but will continue:`, updateError);
+          console.warn(`Cannot update bucket '${IMAGE_BUCKETS.FOOD}' settings, but will continue:`, updateError);
         }
       } catch (updateError) {
-        console.warn(`Error updating bucket '${IMAGE_BUCKET}' settings, but will continue:`, updateError);
+        console.warn(`Error updating bucket '${IMAGE_BUCKETS.FOOD}' settings, but will continue:`, updateError);
       }
     }
     
