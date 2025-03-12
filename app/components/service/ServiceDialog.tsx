@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Service, CreateServiceInput, UpdateServiceInput } from '../../types/service';
 import { createClient } from '@supabase/supabase-js';
+import { validateImage, uploadImage, deleteImage, IMAGE_BUCKETS } from '../../lib/imageUtils';
+import { Image, X, Loader2, Upload } from 'lucide-react';
 
 // Setup Supabase client for building data
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -37,12 +39,16 @@ export function ServiceDialog({
     duration: 60,
     category: 'housekeeping',
     is_available: true,
-    building_id: undefined
+    building_id: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [buildings, setBuildings] = useState<BuildingOption[]>([]);
   const [buildingsLoading, setBuildingsLoading] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch buildings list
   useEffect(() => {
@@ -78,6 +84,7 @@ export function ServiceDialog({
         duration: service.duration,
         category: service.category,
         is_available: service.is_available,
+        image_url: service.image_url,
         building_id: service.building_id
       });
     } else {
@@ -89,9 +96,13 @@ export function ServiceDialog({
         duration: 60,
         category: 'housekeeping',
         is_available: true,
-        building_id: defaultBuildingId || undefined
+        image_url: undefined,
+        building_id: defaultBuildingId || ''
       });
     }
+    // Reset image state when dialog opens/closes or service changes
+    setImageFile(null);
+    setImageError(null);
   }, [service, isOpen, defaultBuildingId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -111,8 +122,36 @@ export function ServiceDialog({
     const value = e.target.value;
     setFormData(prev => ({
       ...prev,
-      building_id: value ? value : undefined
+      building_id: value
     }));
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate the image
+    const validation = validateImage(file);
+    if (!validation.valid) {
+      setImageError(validation.error);
+      return;
+    }
+    
+    // Clear any previous errors
+    setImageError(null);
+    setImageFile(file);
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    
+    // If removing an existing image (not a newly selected one)
+    if (!imageFile && formData.image_url) {
+      setFormData(prev => ({ ...prev, image_url: undefined }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,9 +160,40 @@ export function ServiceDialog({
     setError(null);
 
     try {
+      let updatedFormData = { ...formData };
+      
+      // Handle image upload if a new image is selected
+      if (imageFile) {
+        setIsUploadingImage(true);
+        try {
+          const imageUrl = await uploadImage(
+            imageFile, 
+            IMAGE_BUCKETS.SERVICE, 
+            formData.category || 'general'
+          );
+          
+          if (imageUrl) {
+            // If there was a previous image, delete it
+            if (formData.image_url) {
+              await deleteImage(formData.image_url, IMAGE_BUCKETS.SERVICE);
+            }
+            
+            updatedFormData.image_url = imageUrl;
+          }
+        } catch (uploadErr) {
+          console.error('Error uploading image:', uploadErr);
+          setImageError(uploadErr instanceof Error ? uploadErr.message : 'Failed to upload image');
+          setIsLoading(false);
+          setIsUploadingImage(false);
+          return;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+      
       const submitData = service 
-        ? { ...formData, id: service.id } 
-        : formData;
+        ? { ...updatedFormData, id: service.id } 
+        : updatedFormData;
       
       await onSubmit(submitData);
       onClose();
@@ -186,10 +256,77 @@ export function ServiceDialog({
                 </select>
               </div>
               
+              {/* Image upload section */}
+              <div>
+                <label htmlFor="image" className="block text-sm font-medium mb-1">
+                  Service Image
+                </label>
+                <div className="mt-1 flex items-center space-x-2">
+                  <input
+                    type="file"
+                    id="image"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    ref={fileInputRef}
+                    className="hidden"
+                  />
+                  
+                  {/* Preview of current/selected image */}
+                  {(formData.image_url || imageFile) && !isUploadingImage ? (
+                    <div className="relative w-24 h-24 border rounded-md overflow-hidden">
+                      <img
+                        src={imageFile ? URL.createObjectURL(imageFile) : formData.image_url}
+                        alt="Service preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/placeholder-service.png';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="absolute top-1 right-1 rounded-full bg-black/50 text-white p-1"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : isUploadingImage ? (
+                    <div className="w-24 h-24 border rounded-md flex items-center justify-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-24 h-24 border-2 border-dashed rounded-md flex flex-col items-center justify-center hover:bg-muted/50 transition-colors"
+                    >
+                      <Upload className="h-8 w-8 text-muted-foreground mb-1" />
+                      <span className="text-xs text-muted-foreground">Upload</span>
+                    </button>
+                  )}
+                  
+                  <div className="flex-1">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-2 text-sm border rounded-md hover:bg-muted transition-colors"
+                    >
+                      {formData.image_url || imageFile ? 'Change Image' : 'Select Image'}
+                    </button>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Upload a service image (optional). Max 2MB.
+                    </p>
+                    {imageError && (
+                      <p className="text-xs text-destructive mt-1">{imageError}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
               {/* Building selector */}
               <div>
                 <label htmlFor="building_id" className="block text-sm font-medium mb-1">
-                  Building
+                  Building *
                 </label>
                 <select
                   id="building_id"
@@ -198,8 +335,9 @@ export function ServiceDialog({
                   onChange={handleBuildingChange}
                   className="w-full p-2 border rounded-md"
                   disabled={buildingsLoading}
+                  required
                 >
-                  <option value="">-- Not associated with any building --</option>
+                  <option value="">-- Select a building --</option>
                   {buildings.map(building => (
                     <option key={building.id} value={building.id}>
                       {building.name}
@@ -250,16 +388,17 @@ export function ServiceDialog({
               
               <div>
                 <label htmlFor="description" className="block text-sm font-medium mb-1">
-                  Description
+                  Description *
                 </label>
                 <textarea
                   id="description"
                   name="description"
+                  rows={3}
                   value={formData.description}
                   onChange={handleChange}
-                  rows={3}
+                  required
                   className="w-full p-2 border rounded-md"
-                  placeholder="Enter service description"
+                  placeholder="Describe the service..."
                 />
               </div>
               
@@ -269,30 +408,38 @@ export function ServiceDialog({
                   name="is_available"
                   type="checkbox"
                   checked={formData.is_available}
-                  onChange={handleChange}
-                  className="h-4 w-4 rounded border-gray-300"
+                  onChange={(e) => setFormData(prev => ({ ...prev, is_available: e.target.checked }))}
+                  className="mr-2"
                 />
-                <label htmlFor="is_available" className="ml-2 block text-sm">
+                <label htmlFor="is_available" className="text-sm">
                   Available for booking
                 </label>
               </div>
-            </div>
-            
-            <div className="flex justify-end space-x-2 mt-6">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 border rounded-md hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
-              >
-                {isLoading ? 'Saving...' : 'Save'}
-              </button>
+              
+              <div className="flex justify-end gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 border rounded-md"
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+                  disabled={isLoading || isUploadingImage}
+                >
+                  {isLoading || isUploadingImage ? (
+                    <span className="flex items-center">
+                      <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                      {isUploadingImage ? 'Uploading...' : 'Saving...'}
+                    </span>
+                  ) : (
+                    'Save Service'
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </div>

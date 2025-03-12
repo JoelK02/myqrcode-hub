@@ -698,6 +698,12 @@ video {
 .top-2 {
   top: 0.5rem;
 }
+.right-1 {
+  right: 0.25rem;
+}
+.top-1 {
+  top: 0.25rem;
+}
 .z-10 {
   z-index: 10;
 }
@@ -909,6 +915,9 @@ video {
 }
 .w-full {
   width: 100%;
+}
+.w-24 {
+  width: 6rem;
 }
 .min-w-\[200px\] {
   min-width: 200px;
@@ -1430,6 +1439,9 @@ video {
 .pt-2 {
   padding-top: 0.5rem;
 }
+.pt-4 {
+  padding-top: 1rem;
+}
 .text-left {
   text-align: left;
 }
@@ -1775,6 +1787,9 @@ video {
 }
 .hover\:bg-secondary\/90:hover {
   background-color: hsl(var(--secondary) / 0.9);
+}
+.hover\:bg-muted:hover {
+  background-color: hsl(var(--muted));
 }
 .hover\:text-blue-900:hover {
   --tw-text-opacity: 1;

@@ -4,8 +4,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Bucket name for image storage
-export const IMAGE_BUCKET = 'food_images';
+// Bucket names for image storage
+export const IMAGE_BUCKETS = {
+  FOOD: 'food_images',
+  SERVICE: 'service_image'
+};
 
 /**
  * Validates an image file
@@ -31,11 +34,13 @@ export function validateImage(file: File, maxSizeInMB = 2): { valid: boolean; er
 /**
  * Uploads an image to Supabase storage
  * @param file The file to upload
+ * @param bucket The storage bucket to use
  * @param folder The folder to upload to (defaults to 'general')
  * @returns The public URL if successful, null otherwise
  */
 export async function uploadImage(
-  file: File, 
+  file: File,
+  bucket = IMAGE_BUCKETS.FOOD,
   folder = 'general'
 ): Promise<string | null> {
   try {
@@ -46,7 +51,7 @@ export async function uploadImage(
     
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
-      .from(IMAGE_BUCKET)
+      .from(bucket)
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
@@ -64,7 +69,7 @@ export async function uploadImage(
     
     // Get public URL
     const { data: urlData } = supabase.storage
-      .from(IMAGE_BUCKET)
+      .from(bucket)
       .getPublicUrl(filePath);
     
     console.log('Image uploaded successfully to:', urlData.publicUrl);
@@ -81,16 +86,17 @@ export async function uploadImage(
 /**
  * Deletes an image from Supabase storage
  * @param url The public URL of the image to delete
+ * @param bucket The storage bucket the image is in
  * @returns true if successful, false otherwise
  */
-export async function deleteImage(url: string): Promise<boolean> {
+export async function deleteImage(url: string, bucket = IMAGE_BUCKETS.FOOD): Promise<boolean> {
   try {
     // Extract the file path from the URL
     const urlObj = new URL(url);
     const path = urlObj.pathname;
     
     // Remove the bucket name and leading slash from the path
-    const bucketPrefix = `/storage/v1/object/public/${IMAGE_BUCKET}/`;
+    const bucketPrefix = `/storage/v1/object/public/${bucket}/`;
     if (!path.startsWith(bucketPrefix)) {
       return false;
     }
@@ -99,7 +105,7 @@ export async function deleteImage(url: string): Promise<boolean> {
     
     // Delete the file
     const { error } = await supabase.storage
-      .from(IMAGE_BUCKET)
+      .from(bucket)
       .remove([filePath]);
     
     if (error) {

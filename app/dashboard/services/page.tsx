@@ -569,10 +569,11 @@ export default function ServicesPage() {
               {!activeServiceCategory && (
                 <button
                   disabled={isAddingBasicServices}
+                  onClick={openCreateServiceDialog}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/90 disabled:opacity-50"
                 >
                   <BookPlus className="h-5 w-5" />
-                  {isAddingBasicServices ? 'Adding Basic Services...' : 'Add 4 Basic Services'}
+                  {isAddingBasicServices ? 'Adding Basic Services...' : 'Add Service'}
                 </button>
               )}
             </div>
@@ -592,6 +593,26 @@ export default function ServicesPage() {
                       </div>
                     </div>
                     <div className="text-lg font-semibold">{formatPrice(service.price)}</div>
+                  </div>
+
+                  {/* Service image with placeholder */}
+                  <div className="mb-4 aspect-video rounded-md overflow-hidden bg-muted/50 flex items-center justify-center">
+                    {service.image_url ? (
+                      <img 
+                        src={service.image_url} 
+                        alt={service.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Replace broken images with placeholder
+                          (e.target as HTMLImageElement).src = '/placeholder-service.png';
+                        }}
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-muted-foreground">
+                        <ImageIcon className="h-8 w-8 mb-1" />
+                        <span className="text-xs">No image</span>
+                      </div>
+                    )}
                   </div>
 
                   {service.description && (

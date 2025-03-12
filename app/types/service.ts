@@ -6,6 +6,7 @@ export interface Service {
   duration: number; // in minutes
   category: 'housekeeping' | 'spa' | 'concierge' | 'maintenance';
   is_available: boolean;
+  image_url?: string;
   created_at: string;
   updated_at: string;
   building_id: string;
@@ -18,6 +19,7 @@ export interface CreateServiceInput {
   duration: number;
   category: 'housekeeping' | 'spa' | 'concierge' | 'maintenance';
   is_available: boolean;
+  image_url?: string;
   building_id: string;
 }
 
