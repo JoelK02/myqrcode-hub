@@ -160,7 +160,7 @@ export function ServiceDialog({
     setError(null);
 
     try {
-      let updatedFormData = { ...formData };
+      const updatedFormData = { ...formData };
       
       // Handle image upload if a new image is selected
       if (imageFile) {
