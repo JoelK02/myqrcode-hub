@@ -285,6 +285,18 @@ function OrderPage({ unitId }: { unitId: string }) {
     }
   };
   
+  // Helper function to check if a date is today
+  const isToday = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    return date.getDate() === today.getDate() && 
+           date.getMonth() === today.getMonth() && 
+           date.getFullYear() === today.getFullYear();
+  };
+  
+  // Filter orders to show only today's orders
+  const todaysOrders = previousOrders.filter(order => isToday(order.created_at));
+  
   if (error) {
     return (
       <div className="p-8 text-center">
@@ -385,9 +397,9 @@ function OrderPage({ unitId }: { unitId: string }) {
               <span className="flex items-center justify-center gap-2">
                 <ShoppingCart className="h-5 w-5" />
                 Orders
-                {previousOrders.length > 0 && (
+                {todaysOrders.length > 0 && (
                   <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
-                    {previousOrders.length}
+                    {todaysOrders.length}
                   </span>
                 )}
               </span>
@@ -527,12 +539,24 @@ function OrderPage({ unitId }: { unitId: string }) {
             {/* Orders Tab Content - Only shown when in Orders tab */}
             {activeTab === 'orders' && (
               <div className="space-y-4">
-                {previousOrders.length === 0 ? (
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium text-lg">Today's Orders</h3>
+                  <span className="text-sm text-muted-foreground">
+                    {new Date().toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </span>
+                </div>
+                
+                {todaysOrders.length === 0 ? (
                   <div className="p-8 text-center bg-white rounded-lg border">
-                    <p className="text-gray-500">No previous orders found for this unit.</p>
+                    <p className="text-gray-500">No orders placed today for this unit.</p>
                   </div>
                 ) : (
-                  previousOrders.map(order => (
+                  todaysOrders.map(order => (
                     <div key={order.id} className="border rounded-lg p-4 bg-white">
                       <div className="flex justify-between items-start mb-3">
                         <div>
