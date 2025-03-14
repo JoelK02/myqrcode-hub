@@ -45,3 +45,26 @@ export interface UpdateOrderStatusInput {
   id: string;
   status: Order['status'];
 } 
+
+export interface OrderPayload {
+  id: string;
+  unit_id: string;
+  unit_number: string;
+  building_id: string;
+  status: string;
+  total_amount: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PrintMessage {
+  type: 'print_order';
+  order: OrderPayload;
+}
+
+export interface PrintResponse {
+  success: boolean;
+  orderId?: string;
+  error?: string;
+}
