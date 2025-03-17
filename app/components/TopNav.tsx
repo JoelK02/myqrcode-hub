@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Bell, BellOff, User } from 'lucide-react';
+import { Bell, BellOff, User, Printer } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
 import { useNotifications } from '../hooks/useNotifications';
@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getBuildings } from '../services/buildings';
 import { Building } from '../types/buildings';
 import toast from 'react-hot-toast';
+import { usePathname } from 'next/navigation';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -426,6 +427,107 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
     });
   };
 
+  // Function to handle printing
+  const handlePrint = () => {
+    try {
+      // Check if printing is available
+      if (typeof window !== 'undefined' && 'print' in window) {
+        // Show a toast notification that printing is initiated
+        toast.success('🖨️ Sending to printer...', {
+          duration: 3000
+        });
+        
+        // Create a hidden iframe for printing current content
+        const printFrame = document.createElement('iframe');
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        
+        // Once the frame is loaded, print its contents
+        printFrame.onload = () => {
+          try {
+            // Get access to the iframe document
+            const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
+            
+            if (frameDoc) {
+              // Write the document title and current page content
+              frameDoc.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <title>Print - ${document.title}</title>
+                  <style>
+                    body { font-family: Arial, sans-serif; }
+                    .print-header { text-align: center; margin-bottom: 20px; }
+                    .print-date { text-align: right; margin-bottom: 30px; }
+                    table { width: 100%; border-collapse: collapse; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    th { background-color: #f2f2f2; }
+                  </style>
+                </head>
+                <body>
+                  <div class="print-header">
+                    <h1>myQRcode Hub - Dashboard Report</h1>
+                  </div>
+                  <div class="print-date">
+                    <p>Generated: ${new Date().toLocaleString()}</p>
+                  </div>
+                  <div class="print-content">
+                    ${document.querySelector('main')?.innerHTML || 'No content to print'}
+                  </div>
+                </body>
+                </html>
+              `);
+              
+              frameDoc.close();
+              
+              // Print the iframe content
+              setTimeout(() => {
+                printFrame.contentWindow?.print();
+                
+                // Remove the iframe after printing
+                setTimeout(() => {
+                  document.body.removeChild(printFrame);
+                }, 1000);
+              }, 500);
+            }
+          } catch (err) {
+            console.error('Error during print preparation:', err);
+            toast.error('Failed to prepare content for printing');
+          }
+        };
+        
+        // Add the iframe to the document to trigger the load event
+        document.body.appendChild(printFrame);
+        
+        // Fallback in case the iframe doesn't load
+        setTimeout(() => {
+          if (document.body.contains(printFrame)) {
+            document.body.removeChild(printFrame);
+            window.print();
+          }
+        }, 2000);
+      } else {
+        // Print API not available
+        console.warn('Print API not available in this environment');
+        toast.error('Printing is not supported in this environment');
+      }
+    } catch (err) {
+      console.error('Error initiating print:', err);
+      toast.error('Failed to connect to printer');
+      
+      // Fallback to native print
+      try {
+        window.print();
+      } catch (printErr) {
+        console.error('Native print fallback failed:', printErr);
+      }
+    }
+  };
+
   return (
     <header className={cn(
       "top-nav transition-all duration-300",
@@ -509,12 +611,31 @@ export function TopNav({ title = 'Dashboard' }: { title?: string }) {
                   Reconnect Subscriptions
                 </button>
                 
+                <button 
+                  onClick={handlePrint}
+                  className={cn(
+                    "mt-2 w-full py-2 px-4 text-sm rounded bg-yellow-500 text-white",
+                  )}
+                >
+                  Print Current Page
+                </button>
+                
                 <p className="text-xs text-muted-foreground">
                   Browser notifications will alert you of new orders even when using other tabs.
                 </p>
               </div>
             </div>
           )}
+        </div>
+        
+        <div className="relative">
+          <button 
+            onClick={handlePrint}
+            className="p-2 rounded-full hover:bg-accent transition-colors" 
+            aria-label="Print current page"
+          >
+            <Printer className="h-5 w-5" />
+          </button>
         </div>
         
         <div className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-accent transition-colors">
