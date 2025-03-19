@@ -215,21 +215,7 @@ export default function UnitsPage() {
     }
   };
 
-  const testQrGeneration = async () => {
-    try {
-      const response = await fetch('/api/test-qr');
-      const data = await response.json();
-      
-      if (data.success) {
-        alert(`QR Code generated successfully!\nURL: ${data.qrCodeUrl}`);
-      } else {
-        alert(`Failed to generate QR Code: ${data.error}`);
-      }
-    } catch (error) {
-      console.error('Error testing QR generation:', error);
-      alert('Error testing QR generation');
-    }
-  };
+  
 
   if (isLoading) {
     return (
@@ -271,12 +257,7 @@ export default function UnitsPage() {
             </select>
           </div>
           
-          <button
-            onClick={testQrGeneration}
-            className="px-4 py-2 rounded-md bg-secondary text-secondary-foreground"
-          >
-            Test QR Generation
-          </button>
+          
           
           <button
             onClick={openCreateDialog}

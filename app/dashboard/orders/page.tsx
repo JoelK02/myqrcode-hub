@@ -21,7 +21,15 @@ import {
   CalendarIcon,
   CheckSquare,
   ListChecks,
-  Bell
+  Bell,
+  RotateCcw,
+  FilterX,
+  Plus, 
+  Minus, 
+  PenSquare, 
+  X, 
+  CheckCircle, 
+  ListFilter
 } from 'lucide-react';
 import { getOrders, updateOrderStatus } from '../../services/order';
 import { getBuildings } from '../../services/buildings';
@@ -79,6 +87,59 @@ export default function OrdersPage() {
   
   // Add a state to track if subscriptions are already set up
   const [subscriptionsActive, setSubscriptionsActive] = useState(false);
+  
+  // Add new filter state variables
+  const [completionAdminFilter, setCompletionAdminFilter] = useState('all');
+  const [completionBuildingFilter, setCompletionBuildingFilter] = useState('all');
+  const [completionDateFrom, setCompletionDateFrom] = useState('');
+  const [completionDateTo, setCompletionDateTo] = useState('');
+  
+  // Add filtered completions derived state
+  const filteredCompletions = useCallback(() => {
+    return completedOrders.filter(completion => {
+      // Filter by admin
+      if (completionAdminFilter !== 'all' && completion.admin_id !== completionAdminFilter) {
+        return false;
+      }
+      
+      // Filter by building (need to check the order's building_id)
+      if (completionBuildingFilter !== 'all' && completion.order?.building_id !== completionBuildingFilter) {
+        return false;
+      }
+      
+      // Filter by date range - from
+      if (completionDateFrom) {
+        const fromDate = new Date(completionDateFrom);
+        fromDate.setHours(0, 0, 0, 0); // Start of day
+        const completionDate = new Date(completion.completed_at);
+        if (completionDate < fromDate) {
+          return false;
+        }
+      }
+      
+      // Filter by date range - to
+      if (completionDateTo) {
+        const toDate = new Date(completionDateTo);
+        toDate.setHours(23, 59, 59, 999); // End of day
+        const completionDate = new Date(completion.completed_at);
+        if (completionDate > toDate) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  }, [completedOrders, completionAdminFilter, completionBuildingFilter, completionDateFrom, completionDateTo]);
+  
+  // Calculate how many filters are active
+  const activeFilterCount = useCallback(() => {
+    let count = 0;
+    if (completionAdminFilter !== 'all') count++;
+    if (completionBuildingFilter !== 'all') count++;
+    if (completionDateFrom) count++;
+    if (completionDateTo) count++;
+    return count;
+  }, [completionAdminFilter, completionBuildingFilter, completionDateFrom, completionDateTo]);
   
   // Wrap fetchData in useCallback
   const fetchData = useCallback(async (isAutoRefresh = false) => {
@@ -492,6 +553,14 @@ export default function OrdersPage() {
           : statusA - statusB;
       }
     });
+
+  // Add new function to reset completion filters
+  const resetCompletionFilters = () => {
+    setCompletionAdminFilter('all');
+    setCompletionBuildingFilter('all');
+    setCompletionDateFrom('');
+    setCompletionDateTo('');
+  };
 
   return (
     <div className="space-y-6">
@@ -933,46 +1002,160 @@ export default function OrdersPage() {
           )}
         </div>
 
+        {/* Filters for Completed Orders */}
+        <div className="mb-4 bg-muted/20 rounded-lg p-4 space-y-3">
+          <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
+            <Filter className="h-4 w-4" />
+            Filter Completed Orders
+            {activeFilterCount() > 0 && (
+              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-primary text-primary-foreground">
+                {activeFilterCount()}
+              </span>
+            )}
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Admin Filter */}
+            <div>
+              <label htmlFor="admin-filter" className="text-xs text-muted-foreground block mb-1">
+                Admin
+              </label>
+              <select
+                id="admin-filter"
+                value={completionAdminFilter}
+                onChange={(e) => setCompletionAdminFilter(e.target.value)}
+                className="w-full p-2 rounded-md border border-input bg-background text-sm"
+              >
+                <option value="all">All Admins</option>
+                {admins.map(admin => (
+                  <option key={admin.id} value={admin.id}>{admin.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Building Filter */}
+            <div>
+              <label htmlFor="completion-building-filter" className="text-xs text-muted-foreground block mb-1">
+                Building
+              </label>
+              <select
+                id="completion-building-filter"
+                value={completionBuildingFilter}
+                onChange={(e) => setCompletionBuildingFilter(e.target.value)}
+                className="w-full p-2 rounded-md border border-input bg-background text-sm"
+              >
+                <option value="all">All Buildings</option>
+                {buildings.map(building => (
+                  <option key={building.id} value={building.id}>{building.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Date Range Filter */}
+            <div>
+              <label htmlFor="date-filter" className="text-xs text-muted-foreground block mb-1">
+                Date Range
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <input 
+                  type="date"
+                  value={completionDateFrom}
+                  onChange={(e) => setCompletionDateFrom(e.target.value)}
+                  className="p-2 rounded-md border border-input bg-background text-sm"
+                  placeholder="From"
+                />
+                <input 
+                  type="date"
+                  value={completionDateTo}
+                  onChange={(e) => setCompletionDateTo(e.target.value)}
+                  className="p-2 rounded-md border border-input bg-background text-sm"
+                  placeholder="To"
+                />
+              </div>
+            </div>
+          </div>
+          
+          {/* Reset Filters Button */}
+          <div className="flex justify-end">
+            <button
+              onClick={resetCompletionFilters}
+              className="text-xs px-3 py-1 bg-muted hover:bg-muted/80 rounded-md flex items-center gap-1"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Reset Filters
+            </button>
+          </div>
+        </div>
+        
+        {/* Building Description for Completed Orders - Show when a specific building is selected */}
+        {completionBuildingFilter !== 'all' && (
+          <div className="mb-4 p-3 bg-muted/20 rounded-md border border-muted">
+            <div className="flex items-start gap-2">
+              <Building2 className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-medium">
+                  {buildings.find(b => b.id === completionBuildingFilter)?.name || 'Building'}
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {buildings.find(b => b.id === completionBuildingFilter)?.description || 'No description available'}
+                </p>
+                <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                  <span className="font-medium">Total Units:</span> 
+                  <span>{buildings.find(b => b.id === completionBuildingFilter)?.total_units || 0}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
           {isLoadingCompletedOrders ? (
-            <div className="flex justify-center items-center p-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : completedOrders.length === 0 ? (
-            <div className="p-12 text-center">
-              <ListChecks className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">No completed orders found</h3>
-              <p className="text-muted-foreground mb-4">
-                Completed orders will appear here when your admins complete them.
-              </p>
+            <div className="p-8 flex justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-muted/50">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Order ID
+              <table className="w-full divide-y divide-border">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Admin
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Building / Unit
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Completed At
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Completed By
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Building
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Completed Date
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Unit
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Total Amount
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Amount
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">
                       Notes
                     </th>
                   </tr>
+                  
+                  {/* Results count row */}
+                  <tr className="bg-muted/30">
+                    <td colSpan={6} className="px-4 py-2 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span>
+                          Showing <strong>{filteredCompletions().length}</strong> of <strong>{completedOrders.length}</strong> completed orders
+                        </span>
+                        {activeFilterCount() > 0 && (
+                          <span className="text-muted-foreground">
+                            {activeFilterCount()} {activeFilterCount() === 1 ? 'filter' : 'filters'} applied
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {completedOrders.map((completion) => (
+                  {filteredCompletions().map((completion) => (
                     <tr key={completion.id} className="bg-card hover:bg-muted/50 transition-colors">
                       <td className="px-4 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-1">
@@ -1019,6 +1202,36 @@ export default function OrdersPage() {
                       </td>
                     </tr>
                   ))}
+                  
+                  {/* Show message when no completions match the filters */}
+                  {filteredCompletions().length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center">
+                        {completedOrders.length === 0 ? (
+                          <div>
+                            <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                              <ClipboardList className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                            <p className="text-muted-foreground font-medium">No completed orders yet</p>
+                            <p className="text-xs text-muted-foreground mt-1">Completed orders will appear here</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                              <FilterX className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                            <p className="text-muted-foreground font-medium">No results match your filters</p>
+                            <button 
+                              onClick={resetCompletionFilters}
+                              className="text-xs underline text-primary mt-2"
+                            >
+                              Reset all filters
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1090,6 +1303,27 @@ export default function OrdersPage() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Building Description - Show when a specific building is selected */}
+      {buildingFilter !== 'all' && (
+        <div className="mt-3 p-3 bg-muted/20 rounded-md border border-muted">
+          <div className="flex items-start gap-2">
+            <Building2 className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-medium">
+                {buildings.find(b => b.id === buildingFilter)?.name || 'Building'}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {buildings.find(b => b.id === buildingFilter)?.description || 'No description available'}
+              </p>
+              <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                <span className="font-medium">Total Units:</span> 
+                <span>{buildings.find(b => b.id === buildingFilter)?.total_units || 0}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -148,53 +148,60 @@ export default function BuildingsPage() {
         </button>
       </header>
 
-      <div className="grid gap-6">
+      <div className="space-y-6">
         {buildings.length === 0 ? (
           <div className="text-center py-12 bg-card rounded-lg border">
             <p className="text-muted-foreground">No buildings found. Add your first building to get started.</p>
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid gap-6">
             {buildings.map((building) => (
               <div
                 key={building.id}
-                className="bg-card rounded-lg border p-6 flex items-center justify-between"
+                className="bg-card rounded-lg border p-6 shadow-sm hover:shadow transition-shadow"
               >
-                <div className="space-y-1">
-                  <h3 className="text-lg font-medium">{building.name}</h3>
-                  <p className="text-muted-foreground">{building.address}</p>
-                  <div className="flex items-center gap-4 mt-2">
-                    <span className={`text-sm px-2 py-1 rounded-full ${getStatusColor(building.status)}`}>
-                      {building.status.charAt(0).toUpperCase() + building.status.slice(1)}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {building.total_units} units
-                    </span>
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <div className="space-y-2 flex-1">
+                    <h3 className="text-xl font-medium">{building.name}</h3>
+                    <p className="text-muted-foreground">{building.address}</p>
+                    {building.description && (
+                      <p className="text-sm text-muted-foreground mt-1 border-l-2 border-muted pl-3 py-1">
+                        {building.description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-4 mt-2">
+                      <span className={`text-sm px-2 py-1 rounded-full ${getStatusColor(building.status)}`}>
+                        {building.status.charAt(0).toUpperCase() + building.status.slice(1)}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {building.total_units} units
+                      </span>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/dashboard/buildings/${building.id}`}
-                    className="p-2 hover:bg-accent rounded-md text-primary"
-                    title="Manage units"
-                  >
-                    <ExternalLink className="h-5 w-5" />
-                  </Link>
-                  <button
-                    onClick={() => openEditDialog(building)}
-                    className="p-2 hover:bg-accent rounded-md"
-                    title="Edit building"
-                  >
-                    <Pencil className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteBuilding(building.id)}
-                    className="p-2 hover:bg-destructive/10 text-destructive rounded-md"
-                    title="Delete building"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </button>
+                  
+                  <div className="flex items-center gap-2 mt-4 sm:mt-0">
+                    <Link
+                      href={`/dashboard/buildings/${building.id}`}
+                      className="p-2 hover:bg-accent rounded-md text-primary"
+                      title="Manage units"
+                    >
+                      <ExternalLink className="h-5 w-5" />
+                    </Link>
+                    <button
+                      onClick={() => openEditDialog(building)}
+                      className="p-2 hover:bg-accent rounded-md"
+                      title="Edit building"
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteBuilding(building.id)}
+                      className="p-2 hover:bg-destructive/10 text-destructive rounded-md"
+                      title="Delete building"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
