@@ -1086,27 +1086,6 @@ export default function OrdersPage() {
             </button>
           </div>
         </div>
-        
-        {/* Building Description for Completed Orders - Show when a specific building is selected */}
-        {completionBuildingFilter !== 'all' && (
-          <div className="mb-4 p-3 bg-muted/20 rounded-md border border-muted">
-            <div className="flex items-start gap-2">
-              <Building2 className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-medium">
-                  {buildings.find(b => b.id === completionBuildingFilter)?.name || 'Building'}
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {buildings.find(b => b.id === completionBuildingFilter)?.description || 'No description available'}
-                </p>
-                <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                  <span className="font-medium">Total Units:</span> 
-                  <span>{buildings.find(b => b.id === completionBuildingFilter)?.total_units || 0}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
           {isLoadingCompletedOrders ? (
@@ -1303,27 +1282,6 @@ export default function OrdersPage() {
                   </>
                 )}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Building Description - Show when a specific building is selected */}
-      {buildingFilter !== 'all' && (
-        <div className="mt-3 p-3 bg-muted/20 rounded-md border border-muted">
-          <div className="flex items-start gap-2">
-            <Building2 className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-medium">
-                {buildings.find(b => b.id === buildingFilter)?.name || 'Building'}
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                {buildings.find(b => b.id === buildingFilter)?.description || 'No description available'}
-              </p>
-              <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                <span className="font-medium">Total Units:</span> 
-                <span>{buildings.find(b => b.id === buildingFilter)?.total_units || 0}</span>
-              </div>
             </div>
           </div>
         </div>

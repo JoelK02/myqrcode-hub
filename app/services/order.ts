@@ -1,5 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { Order, CreateOrderInput, UpdateOrderStatusInput, OrderItem } from '../types/order';
+import { OrderCompletion, Admin } from '../services/admin';
+
+// Define more specific types to replace 'any'
+interface CompletionWithAdmin extends OrderCompletion {
+  admin: Admin;
+}
+
+interface CompletionsMap {
+  [orderId: string]: CompletionWithAdmin;
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -38,7 +48,7 @@ export async function getOrders(filters?: {
         ?.filter(order => order.status === 'completed')
         .map(order => order.id) || [];
       
-      let completions: Record<string, any> = {};
+      let completions: CompletionsMap = {};
       
       if (completedOrderIds.length > 0) {
         const { data: completionsData, error: completionsError } = await supabase
@@ -54,9 +64,9 @@ export async function getOrders(filters?: {
         } else if (completionsData) {
           // Create a map of order_id to completion data
           completions = completionsData.reduce((acc, completion) => {
-            acc[completion.order_id] = completion;
+            acc[completion.order_id] = completion as CompletionWithAdmin;
             return acc;
-          }, {} as Record<string, any>);
+          }, {} as CompletionsMap);
         }
       }
       
@@ -157,7 +167,7 @@ export async function getOrders(filters?: {
       .map(order => order.id);
     
     // Get completions for completed orders in a separate query
-    let completions: Record<string, any> = {};
+    let completions: CompletionsMap = {};
     
     if (completedOrderIds.length > 0) {
       const { data: completionsData, error: completionsError } = await supabase
@@ -174,9 +184,9 @@ export async function getOrders(filters?: {
       } else if (completionsData) {
         // Create a map of order_id to completion data
         completions = completionsData.reduce((acc, completion) => {
-          acc[completion.order_id] = completion;
+          acc[completion.order_id] = completion as CompletionWithAdmin;
           return acc;
-        }, {} as Record<string, any>);
+        }, {} as CompletionsMap);
       }
     }
     
