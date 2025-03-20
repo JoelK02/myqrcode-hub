@@ -128,16 +128,74 @@ export async function updateBuilding(building: UpdateBuildingInput): Promise<Bui
 }
 
 export async function deleteBuilding(id: string): Promise<void> {
-  // Get the current authenticated user
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  const { error } = await supabase
-    .from('buildings')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', user?.id);
+  try {
+    // Get the current authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('You must be logged in to delete a building');
+    }
+    
+    // First, check if there are any menu items associated with this building
+    const { data: menuItems, error: menuError } = await supabase
+      .from('menu_items')
+      .select('id')
+      .eq('building_id', id);
+      
+    if (menuError) {
+      console.error('Error checking menu items:', menuError);
+      throw new Error(`Failed to check menu items: ${menuError.message}`);
+    }
+    
+    // If there are menu items, update them to remove the building association
+    if (menuItems && menuItems.length > 0) {
+      const { error: updateError } = await supabase
+        .from('menu_items')
+        .update({ building_id: null })
+        .eq('building_id', id);
+        
+      if (updateError) {
+        console.error('Error updating menu items:', updateError);
+        throw new Error(`Failed to update menu items: ${updateError.message}`);
+      }
+    }
+    
+    // Also check for services associated with this building
+    const { data: services, error: servicesError } = await supabase
+      .from('services')
+      .select('id')
+      .eq('building_id', id);
+      
+    if (servicesError) {
+      console.error('Error checking services:', servicesError);
+      throw new Error(`Failed to check services: ${servicesError.message}`);
+    }
+    
+    // If there are services, update them to remove the building association
+    if (services && services.length > 0) {
+      const { error: updateServicesError } = await supabase
+        .from('services')
+        .update({ building_id: null })
+        .eq('building_id', id);
+        
+      if (updateServicesError) {
+        console.error('Error updating services:', updateServicesError);
+        throw new Error(`Failed to update services: ${updateServicesError.message}`);
+      }
+    }
+    
+    // Now delete the building
+    const { error } = await supabase
+      .from('buildings')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user?.id);
 
-  if (error) {
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error in deleteBuilding:', error);
     throw error;
   }
 } 
