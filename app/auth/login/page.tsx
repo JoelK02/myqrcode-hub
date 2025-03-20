@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
-import { QrCode } from 'lucide-react';
+import Image from 'next/image';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -40,9 +40,16 @@ export default function Login() {
       <div className="hidden sm:flex flex-col justify-center items-center w-full sm:w-1/2 bg-primary text-primary-foreground p-10">
         <div className="max-w-md text-center">
           <div className="flex justify-center mb-6">
-            <div className="rounded-full h-16 w-16 flex items-center justify-center bg-white text-primary">
-              <QrCode className="h-8 w-8" />
-            </div>
+              <div className="relative">
+                <Image 
+                  src="/images/website_icon.png" 
+                  alt="myQRcode Hub Logo" 
+                  width={52} 
+                  height={52}
+                  priority
+                />
+                <span className="absolute -top-1 -right-3 text-[10px] font-bold text-primary-foreground">QR</span>
+              </div>
           </div>
           <h1 className="text-4xl font-bold mb-2">myQRcode Hub</h1>
           <p className="text-primary-foreground/80 mb-8">
@@ -69,8 +76,15 @@ export default function Login() {
       <div className="w-full sm:w-1/2 flex items-center justify-center p-10">
         <div className="w-full max-w-md space-y-8">
           <div className="sm:hidden flex flex-col items-center mb-8">
-            <div className="rounded-full h-16 w-16 flex items-center justify-center bg-primary text-primary-foreground mb-4">
-              <QrCode className="h-8 w-8" />
+            <div className="rounded-full h-16 w-16 flex items-center justify-center bg-primary p-2 mb-4 relative">
+              <Image 
+                src="/images/website_icon.png" 
+                alt="myQRcode Hub Logo" 
+                width={40} 
+                height={40}
+                priority
+              />
+              <span className="absolute -top-1 -right-1 text-[10px] font-bold text-white">QR</span>
             </div>
             <h1 className="text-3xl font-bold">myQRcode Hub</h1>
           </div>

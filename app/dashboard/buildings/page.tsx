@@ -89,7 +89,17 @@ export default function BuildingsPage() {
       await loadBuildings();
     } catch (err) {
       console.error('Error deleting building:', err);
-      alert('Failed to delete building');
+      
+      // Check for specific foreign key constraint error
+      const error = err as Error;
+      if (error.message?.includes('referenced from table')) {
+        alert('This building cannot be deleted because it has related items. The system will attempt to remove these associations and try again.');
+        
+        // Try to refresh the page to see the latest data
+        await loadBuildings();
+      } else {
+        alert(`Failed to delete building: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 

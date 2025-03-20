@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';   
 import { useAuth } from '../hooks/useAuth';
-
+import Image from 'next/image';
 export function Sidebar() {
   const [expanded, setExpanded] = useState(true);
   const { signOut } = useAuth();
@@ -67,7 +67,21 @@ export function Sidebar() {
     )}>
       <div className="flex items-center justify-between h-16 p-4 border-b">
         {expanded ? (
-          <h2 className="text-xl font-semibold">myQRcode</h2>
+          <>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Image 
+                src="/images/website_icon.png" 
+                alt="myQRcode Hub Logo" 
+                width={38} 
+                height={38}
+                priority  
+              />
+              <span className="absolute -top-1.5 -right-2 text-[9px] font-bold">QR</span>
+            </div>
+            <h2 className="text-xl font-semibold">myQRcode</h2>
+          </div>
+          </>
         ) : (
           <></>
         )}
