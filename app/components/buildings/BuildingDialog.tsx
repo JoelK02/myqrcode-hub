@@ -105,20 +105,6 @@ export function BuildingDialog({
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1" htmlFor="total_units">
-              Total Units
-            </label>
-            <input
-              id="total_units"
-              type="number"
-              required
-              min="1"
-              value={formData.total_units}
-              onChange={(e) => setFormData({ ...formData, total_units: parseInt(e.target.value) })}
-              className="w-full rounded-md border px-3 py-2"
-            />
-          </div>
 
           <div>
             <label className="block text-sm font-medium mb-1" htmlFor="description">

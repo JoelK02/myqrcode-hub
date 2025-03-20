@@ -11,6 +11,9 @@ export interface OrderItem {
   updated_at: string;
 }
 
+// Import OrderCompletion type if needed
+import { OrderCompletion } from '../services/admin';
+
 export interface Order {
   id: string;
   unit_id: string;
@@ -23,6 +26,7 @@ export interface Order {
   order_items: OrderItem[];
   created_at: string;
   updated_at: string;
+  completion?: OrderCompletion | null; // Add completion data
 }
 
 export interface CreateOrderInput {

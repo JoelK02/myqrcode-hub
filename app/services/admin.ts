@@ -188,7 +188,7 @@ export async function getOrderCompletion(orderId: string): Promise<OrderCompleti
     
     // Get admin IDs
     const adminIds = admins.map(admin => admin.id);
-    
+    console.log('adminIds', adminIds);
     // Now get the order completion for this order, but only if completed by one of the user's admins
     const { data, error } = await supabase
       .from('order_completions')

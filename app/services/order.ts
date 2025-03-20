@@ -1,5 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { Order, CreateOrderInput, UpdateOrderStatusInput, OrderItem } from '../types/order';
+import { OrderCompletion, Admin } from '../services/admin';
+
+// Define more specific types to replace 'any'
+interface CompletionWithAdmin extends OrderCompletion {
+  admin: Admin;
+}
+
+interface CompletionsMap {
+  [orderId: string]: CompletionWithAdmin;
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -33,7 +43,42 @@ export async function getOrders(filters?: {
         throw new Error(`Failed to fetch orders: ${error.message}`);
       }
       
-      return data || [];
+      // For completed orders, get their completion data
+      const completedOrderIds = data
+        ?.filter(order => order.status === 'completed')
+        .map(order => order.id) || [];
+      
+      let completions: CompletionsMap = {};
+      
+      if (completedOrderIds.length > 0) {
+        const { data: completionsData, error: completionsError } = await supabase
+          .from('order_completions')
+          .select(`
+            *,
+            admin:admins(*)
+          `)
+          .in('order_id', completedOrderIds);
+          
+        if (completionsError) {
+          console.error('Error fetching completions:', completionsError);
+        } else if (completionsData) {
+          // Create a map of order_id to completion data
+          completions = completionsData.reduce((acc, completion) => {
+            acc[completion.order_id] = completion as CompletionWithAdmin;
+            return acc;
+          }, {} as CompletionsMap);
+        }
+      }
+      
+      // Attach completion data to orders
+      const processedOrders = data?.map(order => {
+        return {
+          ...order,
+          completion: completions[order.id] || null
+        };
+      }) || [];
+      
+      return processedOrders;
     }
     
     // Regular authenticated mode below
@@ -69,6 +114,21 @@ export async function getOrders(filters?: {
       return [];
     }
     
+    // Get all admin IDs that belong to the current user for proper filtering
+    const { data: userAdmins, error: adminsError } = await supabase
+      .from('admins')
+      .select('id')
+      .eq('user_id', user.id);
+      
+    if (adminsError) {
+      console.error('Error fetching user admins:', adminsError);
+      throw new Error(`Failed to fetch user admins: ${adminsError.message}`);
+    }
+    
+    // Extract admin IDs
+    const adminIds = userAdmins.map(admin => admin.id);
+    
+    // Now fetch orders with their completions and admin details in a single query
     let query = supabase
       .from('orders')
       .select(`
@@ -100,8 +160,45 @@ export async function getOrders(filters?: {
     if (!data) {
       return [];
     }
+    
+    // Get all order IDs that are completed
+    const completedOrderIds = data
+      .filter(order => order.status === 'completed')
+      .map(order => order.id);
+    
+    // Get completions for completed orders in a separate query
+    let completions: CompletionsMap = {};
+    
+    if (completedOrderIds.length > 0) {
+      const { data: completionsData, error: completionsError } = await supabase
+        .from('order_completions')
+        .select(`
+          *,
+          admin:admins(*)
+        `)
+        .in('order_id', completedOrderIds)
+        .in('admin_id', adminIds);
+        
+      if (completionsError) {
+        console.error('Error fetching completions:', completionsError);
+      } else if (completionsData) {
+        // Create a map of order_id to completion data
+        completions = completionsData.reduce((acc, completion) => {
+          acc[completion.order_id] = completion as CompletionWithAdmin;
+          return acc;
+        }, {} as CompletionsMap);
+      }
+    }
+    
+    // Attach completion data to orders
+    const processedOrders = data.map(order => {
+      return {
+        ...order,
+        completion: completions[order.id] || null
+      };
+    });
 
-    return data as Order[];
+    return processedOrders;
   } catch (error) {
     console.error('Error in getOrders:', error);
     throw error;
