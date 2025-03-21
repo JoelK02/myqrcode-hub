@@ -43,15 +43,18 @@ export default function Login() {
               <div className="relative">
                 <Image 
                   src="/images/website_icon.png" 
-                  alt="myQRcode Hub Logo" 
+                  alt="StreamHost Logo" 
                   width={52} 
                   height={52}
                   priority
                 />
-                <span className="absolute -top-1 -right-3 text-[10px] font-bold text-primary-foreground">QR</span>
               </div>
           </div>
-          <h1 className="text-4xl font-bold mb-2">myQRcode Hub</h1>
+          <h1 className="text-4xl font-bold mb-2 relative inline-block">
+            StreamHost
+            <span className="absolute -top-3 -right-7 text-[12px] font-bold  px-1 py-0.5 rounded-sm">QR</span>
+          </h1>
+          
           <p className="text-primary-foreground/80 mb-8">
             Streamline your property management with our QR code system. Connect, manage, and deliver better experiences.
           </p>
@@ -79,21 +82,23 @@ export default function Login() {
             <div className="rounded-full h-16 w-16 flex items-center justify-center bg-primary p-2 mb-4 relative">
               <Image 
                 src="/images/website_icon.png" 
-                alt="myQRcode Hub Logo" 
+                alt="SteamHost Logo" 
                 width={40} 
                 height={40}
                 priority
               />
-              <span className="absolute -top-1 -right-1 text-[10px] font-bold text-white">QR</span>
             </div>
-            <h1 className="text-3xl font-bold">myQRcode Hub</h1>
+            <h1 className="text-3xl font-bold relative inline-block">
+              StreamHost
+              <span className="absolute -top-2 -right-6 text-[10px] font-bold  text-black px-1 py-0.5 rounded-sm">QR</span>
+            </h1>
           </div>
           
           <div className="text-center">
             <h2 className="text-2xl font-bold">{isSignUp ? 'Create an account' : 'Welcome back'}</h2>
             <p className="text-muted-foreground mt-2">
               {isSignUp 
-                ? 'Sign up to get started with myQRcode Hub' 
+                ? 'Sign up to get started with SteamHost' 
                 : 'Sign in to access your dashboard'}
             </p>
           </div>
