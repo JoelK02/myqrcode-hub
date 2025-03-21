@@ -72,18 +72,20 @@ export function Sidebar() {
             <div className="relative">
               <Image 
                 src="/images/website_icon.png" 
-                alt="myQRcode Hub Logo" 
+                alt="SteamHost Logo" 
                 width={38} 
                 height={38}
                 priority  
               />
-              <span className="absolute -top-1.5 -right-2 text-[9px] font-bold">QR</span>
             </div>
-            <h2 className="text-xl font-semibold">myQRcode</h2>
+            <h2 className="text-xl font-semibold relative">
+              StreamHost
+              <span className="absolute -top-1.5 -right-4 text-[8px] font-bold  text-black px-0.5 py-0 rounded-sm">QR</span>
+            </h2>
           </div>
           </>
         ) : (
-          <></>
+          <> </>
         )}
         <button 
           onClick={toggleSidebar} 
