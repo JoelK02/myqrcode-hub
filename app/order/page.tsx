@@ -326,6 +326,19 @@ function OrderPage({ unitId }: { unitId: string }) {
       </div>
     );
   }
+
+  // Check if the unit is occupied
+  if (unit.status !== 'occupied' && unit.status !== 'Checked In') {
+    return (
+      <div className="p-8 text-center">
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4 mx-auto">
+          <AlertTriangle className="h-8 w-8 text-gray-500" />
+        </div>
+        <h1 className="text-2xl font-bold mb-4">QR Code Unavailable</h1>
+        <p>This QR code is currently not available for use.</p>
+      </div>
+    );
+  }
   
   if (isSuccess) {
     return (

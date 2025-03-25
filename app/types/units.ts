@@ -4,7 +4,7 @@ export interface Unit {
   unit_number: string;
   qr_code_url?: string;
   floor_number?: string;
-  status: 'available' | 'occupied' | 'maintenance' | 'reserved';
+  status: 'available' | 'occupied' | 'maintenance' | 'reserved' | 'Checked In';
   description?: string;
   created_at: string;
   updated_at: string;

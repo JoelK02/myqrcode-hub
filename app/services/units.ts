@@ -297,4 +297,104 @@ export async function deleteUnit(id: string): Promise<void> {
     console.error('Error in deleteUnit:', error);
     throw error;
   }
+}
+
+export async function checkInUnit(id: string): Promise<Unit> {
+  try {
+    // Get the current authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('You must be logged in to check in a unit');
+    }
+    
+    // Get the unit's building_id first
+    const { data: existingUnit } = await supabase
+      .from('units')
+      .select('building_id')
+      .eq('id', id)
+      .single();
+      
+    if (existingUnit) {
+      // Check if the building belongs to the user
+      const { data: buildingCheck } = await supabase
+        .from('buildings')
+        .select('id')
+        .eq('id', existingUnit.building_id)
+        .eq('user_id', user.id)
+        .single();
+        
+      if (!buildingCheck) {
+        throw new Error('You do not have permission to update this unit');
+      }
+    }
+    
+    // Update unit status to 'occupied'
+    const { data, error } = await supabase
+      .from('units')
+      .update({ status: 'occupied' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in checkInUnit:', error);
+    throw error;
+  }
+}
+
+export async function checkOutUnit(id: string): Promise<Unit> {
+  try {
+    // Get the current authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('You must be logged in to check out a unit');
+    }
+    
+    // Get the unit's building_id first
+    const { data: existingUnit } = await supabase
+      .from('units')
+      .select('building_id')
+      .eq('id', id)
+      .single();
+      
+    if (existingUnit) {
+      // Check if the building belongs to the user
+      const { data: buildingCheck } = await supabase
+        .from('buildings')
+        .select('id')
+        .eq('id', existingUnit.building_id)
+        .eq('user_id', user.id)
+        .single();
+        
+      if (!buildingCheck) {
+        throw new Error('You do not have permission to update this unit');
+      }
+    }
+    
+    // Update unit status to 'available'
+    const { data, error } = await supabase
+      .from('units')
+      .update({ status: 'available' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in checkOutUnit:', error);
+    throw error;
+  }
 } 

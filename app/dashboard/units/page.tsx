@@ -3,10 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import { Unit, CreateUnitInput, UpdateUnitInput } from '../../types/units';
 import { Building } from '../../types/buildings';
-import { getUnits, createUnit, updateUnit, deleteUnit } from '../../services/units';
+import { getUnits, createUnit, updateUnit, deleteUnit, checkInUnit, checkOutUnit } from '../../services/units';
 import { getBuildings } from '../../services/buildings';
 import { UnitDialog } from '../../components/units/UnitDialog';
-import { Plus, Pencil, Trash2, QrCode, Building2, X, Download } from 'lucide-react';
+import { Plus, Pencil, Trash2, QrCode, Building2, X, Download, LogIn, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { generateQRCodeDataUrl } from '../../services/qrcode';
 
@@ -109,6 +109,28 @@ export default function UnitsPage() {
     } catch (err) {
       console.error('Error deleting unit:', err);
       alert('Failed to delete unit');
+    }
+  };
+
+  const handleCheckIn = async (id: string) => {
+    try {
+      await checkInUnit(id);
+      const updatedUnits = await getUnits(filterBuildingId || undefined);
+      setUnits(updatedUnits);
+    } catch (err) {
+      console.error('Error checking in unit:', err);
+      alert('Failed to check in unit');
+    }
+  };
+
+  const handleCheckOut = async (id: string) => {
+    try {
+      await checkOutUnit(id);
+      const updatedUnits = await getUnits(filterBuildingId || undefined);
+      setUnits(updatedUnits);
+    } catch (err) {
+      console.error('Error checking out unit:', err);
+      alert('Failed to check out unit');
     }
   };
 
@@ -215,7 +237,18 @@ export default function UnitsPage() {
     }
   };
 
-  
+  // Helper to display user-friendly status names
+  const getDisplayStatus = (status: Unit['status']) => {
+    switch (status) {
+      case 'available':
+        return 'Checked Out';
+      case 'occupied':
+        return 'Checked In';
+      default:
+        // For other statuses, just capitalize the first letter
+        return status.charAt(0).toUpperCase() + status.slice(1);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -295,7 +328,7 @@ export default function UnitsPage() {
                     <div className="flex items-center justify-between">
                       <div className="font-medium text-lg">{unit.unit_number}</div>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(unit.status)}`}>
-                        {unit.status.charAt(0).toUpperCase() + unit.status.slice(1)}
+                        {getDisplayStatus(unit.status)}
                       </span>
                     </div>
                     
@@ -320,32 +353,58 @@ export default function UnitsPage() {
                   )}
                   
                   <div className="flex items-center justify-between pt-2 mt-2 px-4 pb-4">
-                    {unit.qr_code_url ? (
-                      <button 
-                        className="flex items-center gap-1 text-sm text-primary hover:underline"
-                        onClick={() => openQrCodeDialog(unit)}
-                      >
-                        <QrCode className="h-4 w-4" />
-                        View QR Code
-                      </button>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">No QR code</span>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {unit.qr_code_url ? (
+                        <button 
+                          className="flex items-center gap-1 text-sm text-primary bg-primary/10 px-3 py-1.5 rounded-md hover:bg-primary/20 transition-colors"
+                          onClick={() => openQrCodeDialog(unit)}
+                        >
+                          <QrCode className="h-4 w-4" />
+                          <span>View QR</span>
+                        </button>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No QR code</span>
+                      )}
+                      
+                      {unit.status !== 'occupied' && (
+                        <button
+                          onClick={() => handleCheckIn(unit.id)}
+                          className="flex items-center gap-1 text-sm text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-md shadow-sm transition-colors"
+                          title="Check In (Make QR Code Active)"
+                        >
+                          <LogIn className="h-4 w-4" />
+                          <span>Check In</span>
+                        </button>
+                      )}
+                      
+                      {unit.status === 'occupied' && (
+                        <button
+                          onClick={() => handleCheckOut(unit.id)}
+                          className="flex items-center gap-1 text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-md shadow-sm transition-colors"
+                          title="Check Out (Make QR Code Inactive)"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          <span>Check Out</span>
+                        </button>
+                      )}
+                    </div>
                     
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => openEditDialog(unit)}
-                        className="p-1.5 hover:bg-accent rounded-md"
+                        className="flex items-center gap-1 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1.5 rounded-md transition-colors"
                         title="Edit unit"
                       >
                         <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit</span>
                       </button>
                       <button
                         onClick={() => handleDeleteUnit(unit.id)}
-                        className="p-1.5 hover:bg-destructive/10 text-destructive rounded-md"
+                        className="flex items-center gap-1 text-sm text-white bg-red-500 hover:bg-red-600 px-2 py-1.5 rounded-md transition-colors"
                         title="Delete unit"
                       >
                         <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete</span>
                       </button>
                     </div>
                   </div>
