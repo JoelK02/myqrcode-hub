@@ -28,12 +28,13 @@ function OrderPageWrapper() {
 function SearchParamsReader() {
   const searchParams = useSearchParams();
   const unitId = searchParams.get('unit');
+  const sessionId = searchParams.get('session');
   
-  return <OrderPage unitId={unitId || ''} />;
+  return <OrderPage unitId={unitId || ''} sessionId={sessionId || undefined} />;
 }
 
 // Main component that accepts unitId as a prop
-function OrderPage({ unitId }: { unitId: string }) {
+function OrderPage({ unitId, sessionId }: { unitId: string, sessionId?: string }) {
   const [unit, setUnit] = useState<Unit | null>(null);
   const [building, setBuilding] = useState<Building | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -55,10 +56,11 @@ function OrderPage({ unitId }: { unitId: string }) {
   const [isSuccess, setIsSuccess] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [orderNotes, setOrderNotes] = useState('');
+  const [validSession, setValidSession] = useState<boolean | null>(null);
   
   // Effect to load the unit data
   useEffect(() => {
-    console.log("Order page loading, unit ID:", unitId);
+    console.log("Order page loading, unit ID:", unitId, "Session ID:", sessionId);
     
     if (!unitId || unitId.trim() === '') {
       setError("No unit specified");
@@ -71,6 +73,33 @@ function OrderPage({ unitId }: { unitId: string }) {
         // Use the proper service functions with guest mode enabled
         const unitData = await getUnit(unitId, true); // Enable guest mode
         setUnit(unitData);
+        
+        // Verify that the session ID is valid if one was provided
+        if (sessionId && unitData.session_id) {
+          const isValid = unitData.session_id === sessionId;
+          setValidSession(isValid);
+          
+          if (!isValid) {
+            setError("This QR code is no longer valid. Please contact the property manager.");
+            setIsLoading(false);
+            return;
+          }
+        } else if (sessionId && !unitData.session_id) {
+          // If a session ID was provided but the unit doesn't have one, it's invalid
+          setValidSession(false);
+          setError("This QR code is no longer valid. Please contact the property manager.");
+          setIsLoading(false);
+          return;
+        } else if (!sessionId && unitData.session_id) {
+          // If no session ID was provided but the unit requires one, it's invalid
+          setValidSession(false);
+          setError("This QR code is missing required session information. Please scan a valid QR code.");
+          setIsLoading(false);
+          return;
+        } else {
+          // No session ID required for this unit
+          setValidSession(true);
+        }
         
         // Now fetch the building data
         if (unitData.building_id) {
@@ -102,7 +131,7 @@ function OrderPage({ unitId }: { unitId: string }) {
     }
     
     fetchUnitData();
-  }, [unitId]);
+  }, [unitId, sessionId]);
   
   // When changing tabs, reset the active category
   useEffect(() => {
@@ -297,45 +326,41 @@ function OrderPage({ unitId }: { unitId: string }) {
   // Filter orders to show only today's orders
   const todaysOrders = previousOrders.filter(order => isToday(order.created_at));
   
-  if (error) {
-    return (
-      <div className="p-8 text-center">
-        <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
-        <p className="mb-4">{error}</p>
-        <p>Please try again or contact support.</p>
-      </div>
-    );
-  }
-  
   if (isLoading) {
     return (
-      <div className="p-8 flex flex-col items-center justify-center">
-        <div className="animate-spin mb-4">
-          <QrCode className="h-8 w-8" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
-        <p>Loading...</p>
       </div>
     );
   }
   
-  if (!unit) {
+  if (error) {
     return (
-      <div className="p-8 text-center">
-        <h1 className="text-2xl font-bold mb-4">Unit Not Found</h1>
-        <p>The QR code you scanned does not link to a valid unit. Please try again or contact support.</p>
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="bg-destructive/10 p-6 rounded-lg max-w-md text-center">
+          <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Error</h2>
+          <p className="mb-4 text-destructive-foreground">{error}</p>
+          {!validSession && (
+            <div className="mt-2 p-3 bg-muted rounded-md text-sm">
+              <p>This QR code has expired or is invalid.</p>
+              <p className="mt-1">It may have been deactivated by staff when the previous guests checked out.</p>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
-
-  // Check if the unit is occupied
-  if (unit.status !== 'occupied' && unit.status !== 'Checked In') {
+  
+  if (!unit || !building) {
     return (
-      <div className="p-8 text-center">
-        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4 mx-auto">
-          <AlertTriangle className="h-8 w-8 text-gray-500" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <p className="text-muted-foreground">No unit found</p>
         </div>
-        <h1 className="text-2xl font-bold mb-4">QR Code Unavailable</h1>
-        <p>This QR code is currently not available for use.</p>
       </div>
     );
   }
@@ -368,6 +393,12 @@ function OrderPage({ unitId }: { unitId: string }) {
             <div className="flex items-center gap-3">
               <QrCode className="h-6 w-6" />
               <h1 className="text-xl font-bold">Room Service</h1>
+              {sessionId && (
+                <span className="ml-2 inline-flex items-center text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full">
+                  <Check className="h-3 w-3 mr-1" />
+                  Verified Session
+                </span>
+              )}
             </div>
             {building && (
               <div className="mt-2">

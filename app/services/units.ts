@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Unit, CreateUnitInput, UpdateUnitInput } from '../types/units';
 import { generateAndUploadQRCode } from './qrcode';
+import { v4 as uuidv4 } from 'uuid';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -304,6 +305,9 @@ export async function checkInUnit(id: string): Promise<Unit> {
     // Get the current authenticated user
     const { data: { user } } = await supabase.auth.getUser();
     
+    // Generate new unique session ID for this check-in
+    const sessionId = uuidv4();
+    
     if (!user) {
       throw new Error('You must be logged in to check in a unit');
     }
@@ -329,10 +333,13 @@ export async function checkInUnit(id: string): Promise<Unit> {
       }
     }
     
-    // Update unit status to 'occupied'
+    // Update unit status to 'occupied' and set the session ID
     const { data, error } = await supabase
       .from('units')
-      .update({ status: 'occupied' })
+      .update({ 
+        status: 'occupied',
+        session_id: sessionId
+      })
       .eq('id', id)
       .select()
       .single();
@@ -342,7 +349,33 @@ export async function checkInUnit(id: string): Promise<Unit> {
       throw error;
     }
 
-    return data;
+    // Generate and update QR code with the new session ID
+    try {
+      const qrCodeUrl = await generateAndUploadQRCode(
+        data.id,
+        data.unit_number,
+        data.building_id,
+        sessionId
+      );
+      
+      // Update the unit with the new QR code URL
+      const { data: updatedData, error: updateError } = await supabase
+        .from('units')
+        .update({ qr_code_url: qrCodeUrl })
+        .eq('id', id)
+        .select()
+        .single();
+        
+      if (updateError) {
+        console.error('Error updating QR code:', updateError);
+        return data;
+      }
+      
+      return updatedData;
+    } catch (qrError) {
+      console.error('Error generating new QR code:', qrError);
+      return data;
+    }
   } catch (error) {
     console.error('Error in checkInUnit:', error);
     throw error;
@@ -361,7 +394,7 @@ export async function checkOutUnit(id: string): Promise<Unit> {
     // Get the unit's building_id first
     const { data: existingUnit } = await supabase
       .from('units')
-      .select('building_id')
+      .select('building_id, unit_number')
       .eq('id', id)
       .single();
       
@@ -379,10 +412,21 @@ export async function checkOutUnit(id: string): Promise<Unit> {
       }
     }
     
-    // Update unit status to 'available'
+    // Generate a new base QR code without the session ID
+    const baseQrCodeUrl = await generateAndUploadQRCode(
+      id,
+      existingUnit.unit_number,
+      existingUnit.building_id
+    );
+    
+    // Update unit status to 'available' and clear session ID
     const { data, error } = await supabase
       .from('units')
-      .update({ status: 'available' })
+      .update({ 
+        status: 'available',
+        session_id: null,
+        qr_code_url: baseQrCodeUrl
+      })
       .eq('id', id)
       .select()
       .single();
