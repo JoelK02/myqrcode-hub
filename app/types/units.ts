@@ -8,6 +8,7 @@ export interface Unit {
   description?: string;
   created_at: string;
   updated_at: string;
+  session_id?: string;
 }
 
 export interface CreateUnitInput {

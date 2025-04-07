@@ -38,9 +38,15 @@ const getBaseOrderUrl = () => {
 };
 
 // Generate a QR code data URL 
-export async function generateQRCodeDataUrl(unitId: string): Promise<string> {
+export async function generateQRCodeDataUrl(unitId: string, sessionId?: string): Promise<string> {
   try {
-    const orderUrl = `${getBaseOrderUrl()}?unit=${unitId}`;
+    let orderUrl = `${getBaseOrderUrl()}?unit=${unitId}`;
+    
+    // Add session ID to the URL if provided
+    if (sessionId) {
+      orderUrl += `&session=${sessionId}`;
+    }
+    
     console.log(`[QR Debug] Generated order URL for data URL: ${orderUrl}`);
     
     // Generate QR code data URL
@@ -61,13 +67,25 @@ export async function generateQRCodeDataUrl(unitId: string): Promise<string> {
 }
 
 // Generate a QR code and upload to Supabase storage
-export async function generateAndUploadQRCode(unitId: string, unitNumber: string, buildingId: string): Promise<string> {
+export async function generateAndUploadQRCode(
+  unitId: string, 
+  unitNumber: string, 
+  buildingId: string,
+  sessionId?: string
+): Promise<string> {
   try {
     console.log(`[QR Debug] Starting QR code generation for unit: ${unitId}, building: ${buildingId}`);
-    const orderUrl = `${getBaseOrderUrl()}?unit=${unitId}`;
+    
+    // Create the order URL, including session ID if provided
+    let orderUrl = `${getBaseOrderUrl()}?unit=${unitId}`;
+    if (sessionId) {
+      orderUrl += `&session=${sessionId}`;
+      console.log(`[QR Debug] Including session ID in URL: ${sessionId}`);
+    }
+    
     console.log(`[QR Debug] Generated order URL: ${orderUrl}`);
     
-    // Generate QR code as data URL instead of buffer
+    // Generate QR code as data URL
     const qrCodeDataUrl = await QRCode.toDataURL(orderUrl, {
       width: 300,
       margin: 2,
@@ -76,81 +94,11 @@ export async function generateAndUploadQRCode(unitId: string, unitNumber: string
         light: '#FFFFFF',
       },
     });
-    console.log(`[QR Debug] QR code data URL generated successfully (truncated): ${qrCodeDataUrl.substring(0, 50)}...`);
+    console.log(`[QR Debug] QR code data URL generated successfully`);
     
-    // Convert data URL to File object for upload
-    const blob = await (await fetch(qrCodeDataUrl)).blob();
-    const file = new File([blob], `unit-${unitId}.png`, { type: 'image/png' });
-    console.log(`[QR Debug] Created File object for upload: ${file.name}, size: ${file.size} bytes`);
-    
-    // Check if bucket exists
-    try {
-      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-      
-      if (bucketsError) {
-        console.error('[QR Debug] Error listing buckets:', bucketsError);
-      } else {
-        console.log('[QR Debug] Available buckets:', buckets.map(b => b.name).join(', '));
-        const bucketExists = buckets.some(bucket => bucket.name === 'qrcodes');
-        console.log(`[QR Debug] Bucket 'qrcodes' exists: ${bucketExists}`);
-        
-        if (!bucketExists) {
-          console.error('[QR Debug] The qrcodes bucket does not exist in your Supabase storage!');
-          // Try to create the bucket
-          try {
-            const { data, error } = await supabase.storage.createBucket('qrcodes', { public: true });
-            console.log('[QR Debug] Attempted to create qrcodes bucket:', data, error);
-          } catch (createError) {
-            console.error('[QR Debug] Failed to create bucket:', createError);
-          }
-        }
-      }
-    } catch (bucketCheckError) {
-      console.error('[QR Debug] Error checking buckets:', bucketCheckError);
-    }
-    
-    // Upload the QR code to Supabase Storage
-    console.log(`[QR Debug] Attempting to upload to path: units/${buildingId}/${unitId}.png`);
-    
-    // Make sure the path exists
-    try {
-      // Create folders structure if needed
-      const folderPath = `units/${buildingId}`;
-      console.log(`[QR Debug] Creating folder path: ${folderPath}`);
-    } catch (folderError) {
-      console.error('[QR Debug] Error with folder:', folderError);
-    }
-    
-    const { data, error } = await supabase.storage
-      .from('qrcodes')
-      .upload(`units/${buildingId}/${unitId}.png`, file, {
-        upsert: true,
-        contentType: 'image/png',
-      });
-    
-    if (error) {
-      console.error('[QR Debug] Error uploading QR code:', error);
-      throw new Error(`Failed to upload QR code: ${error.message}`);
-    }
-    
-    console.log('[QR Debug] Upload successful:', data);
-    
-    // Get the public URL
-    const { data: urlData } = supabase.storage
-      .from('qrcodes')
-      .getPublicUrl(`units/${buildingId}/${unitId}.png`);
-    
-    console.log('[QR Debug] Generated public URL:', urlData.publicUrl);
-    
-    // Verify the URL by checking if it returns a valid response
-    try {
-      const response = await fetch(urlData.publicUrl, { method: 'HEAD' });
-      console.log(`[QR Debug] URL verification status: ${response.status}`);
-    } catch (verifyError) {
-      console.warn('[QR Debug] Could not verify URL:', verifyError);
-    }
-    
-    return urlData.publicUrl;
+    // WORKAROUND: Due to RLS issues with storage, we'll just return the data URL directly
+    // This skips the storage upload step but provides a working QR code
+    return qrCodeDataUrl;
   } catch (error) {
     console.error('[QR Debug] Error generating or uploading QR code:', error);
     throw new Error('Failed to generate or upload QR code');

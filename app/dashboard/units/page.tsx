@@ -157,8 +157,8 @@ export default function UnitsPage() {
       setSelectedUnit(unit);
       setQrCodeDialogOpen(true);
       
-      // Generate preview
-      const dataUrl = await generateQRCodeDataUrl(unit.id);
+      // Generate preview, including session ID if available
+      const dataUrl = await generateQRCodeDataUrl(unit.id, unit.session_id);
       setQrCodeDataUrl(dataUrl);
     } catch (error) {
       console.error('Error showing QR code:', error);
@@ -361,6 +361,7 @@ export default function UnitsPage() {
                         >
                           <QrCode className="h-4 w-4" />
                           <span>View QR</span>
+                          {unit.session_id && <span className="ml-1 text-xs bg-green-500 text-white px-1 rounded-full">Active</span>}
                         </button>
                       ) : (
                         <span className="text-sm text-muted-foreground">No QR code</span>
@@ -443,6 +444,11 @@ export default function UnitsPage() {
               <p className="text-sm text-muted-foreground">
                 Unit {selectedUnit.unit_number} - {buildingMap[selectedUnit.building_id]?.name || 'Unknown Building'}
               </p>
+              {selectedUnit.session_id && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Active Session ID: {selectedUnit.session_id.slice(0, 8)}...
+                </p>
+              )}
             </div>
             
             {loadingQrCode ? (
